@@ -1,0 +1,318 @@
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { categories } from "./categories";
+import { formatEtbPrice, normalizePriceInput } from "@/lib/format";
+import { getListingPricingLabel } from "@/lib/listingPricing";
+import { BEAUTY_GENDER_OPTIONS, BEAUTY_SUBCATEGORIES, getBeautyBrands, getBeautyProductTypes } from "@/lib/beauty";
+import { Avatar } from "@/components/Avatar";
+import { getProfileMeta } from "@/lib/localProfile";
+
+type Listing = {
+  id: string;
+  title: string;
+  price?: number | null;
+  city: string;
+  area: string;
+  condition: "NEW" | "USED";
+  details?: Record<string, string>;
+  images: { url: string }[];
+  vendorId?: string | null;
+  vendor?: {
+    id?: string;
+    userId?: string;
+    slug?: string;
+    storeName?: string;
+    fullName?: string;
+    phone?: string;
+    city?: string;
+    area?: string;
+    profileImageId?: string;
+  } | null;
+};
+
+type Props = {
+  initialCategory?: string;
+  title?: string;
+  query?: string;
+  onQueryChange?: (value: string) => void;
+};
+
+export function ListingSearch({ initialCategory, title, query, onQueryChange }: Props) {
+  const [internalQuery, setInternalQuery] = useState("");
+  const [category, setCategory] = useState(initialCategory || "");
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
+  const [location, setLocation] = useState("");
+  const [condition, setCondition] = useState("");
+  const [brands, setBrands] = useState<string[]>([]);
+  const [fuels, setFuels] = useState<string[]>([]);
+  const [transmissions, setTransmissions] = useState<string[]>([]);
+  const [jobTypes, setJobTypes] = useState<string[]>([]);
+  const [bedrooms, setBedrooms] = useState<string[]>([]);
+  const [sizeMin, setSizeMin] = useState("");
+  const [sizeMax, setSizeMax] = useState("");
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
+  const [beautySubcategory, setBeautySubcategory] = useState("");
+  const [beautyBrands, setBeautyBrands] = useState<string[]>([]);
+  const [beautyTypes, setBeautyTypes] = useState<string[]>([]);
+  const [beautyGenders, setBeautyGenders] = useState<string[]>([]);
+  const [results, setResults] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const categoryOptions = useMemo(() => categories.map((c) => c.name), []);
+
+  async function runSearch() {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    if (priceMin) params.set("priceMin", priceMin);
+    if (priceMax) params.set("priceMax", priceMax);
+    if (location) params.set("location", location);
+    if (condition) params.set("condition", condition);
+    if (brands.length) params.set("brands", brands.join(","));
+    if (fuels.length) params.set("fuels", fuels.join(","));
+    if (transmissions.length) params.set("transmissions", transmissions.join(","));
+    if (jobTypes.length) params.set("jobTypes", jobTypes.join(","));
+    if (bedrooms.length) params.set("bedrooms", bedrooms.join(","));
+    if (sizeMin) params.set("sizeMin", sizeMin);
+    if (sizeMax) params.set("sizeMax", sizeMax);
+    if (salaryMin) params.set("salaryMin", salaryMin);
+    if (salaryMax) params.set("salaryMax", salaryMax);
+    if (beautySubcategory) params.set("beautySubcategory", beautySubcategory);
+    if (beautyBrands.length) params.set("beautyBrands", beautyBrands.join(","));
+    if (beautyTypes.length) params.set("beautyTypes", beautyTypes.join(","));
+    if (beautyGenders.length) params.set("beautyGenders", beautyGenders.join(","));
+
+    const res = await fetch(`/api/listings/search?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      setResults(data.listings || []);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      runSearch();
+    }, 250);
+    return () => clearTimeout(t);
+  }, [category, priceMin, priceMax, location, condition, brands, fuels, transmissions, jobTypes, bedrooms, sizeMin, sizeMax, salaryMin, salaryMax, beautySubcategory, beautyBrands, beautyTypes, beautyGenders]);
+
+  useEffect(() => {
+    setBrands([]);
+    setFuels([]);
+    setTransmissions([]);
+    setJobTypes([]);
+    setBedrooms([]);
+    setSizeMin("");
+    setSizeMax("");
+    setSalaryMin("");
+    setSalaryMax("");
+    setBeautySubcategory("");
+    setBeautyBrands([]);
+    setBeautyTypes([]);
+    setBeautyGenders([]);
+  }, [category]);
+
+  const activeQuery = query !== undefined ? query : internalQuery;
+  const filtered = results.filter((item) =>
+    item.title.toLowerCase().includes(activeQuery.trim().toLowerCase())
+  );
+
+  return (
+    <section className="searchSection">
+      {title ? <h2 className="searchTitle">{title}</h2> : null}
+      <div className="searchFilters">
+        <input
+          className="searchInput"
+          placeholder="Search listings..."
+          value={activeQuery}
+          onChange={(e) => {
+            if (onQueryChange) {
+              onQueryChange(e.target.value);
+            } else {
+              setInternalQuery(e.target.value);
+            }
+          }}
+        />
+        <select className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="">All categories</option>
+          {categoryOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <input
+          className="searchInput"
+          placeholder="Location"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+        />
+        <input
+          className="searchInput"
+          placeholder="Min price"
+          value={priceMin}
+          onChange={(e) => setPriceMin(normalizePriceInput(e.target.value))}
+        />
+        <input
+          className="searchInput"
+          placeholder="Max price"
+          value={priceMax}
+          onChange={(e) => setPriceMax(normalizePriceInput(e.target.value))}
+        />
+        <button className="searchGo" type="button" onClick={runSearch}>
+          Search
+        </button>
+      </div>
+      {category === "Vehicles" ? (
+        <div className="searchFilters" style={{ marginTop: 10 }}>
+          <MultiToggle label="Fuel" options={["Petrol", "Diesel", "Hybrid", "Electric"]} values={fuels} onChange={setFuels} />
+          <MultiToggle label="Transmission" options={["Automatic", "Manual", "CVT"]} values={transmissions} onChange={setTransmissions} />
+        </div>
+      ) : null}
+      {category === "Jobs & Employment" || category === "Job Seekers (CVs)" ? (
+        <div className="searchFilters" style={{ marginTop: 10 }}>
+          <MultiToggle label="Job Type" options={["Full-Time", "Part-Time", "Remote", "Contract", "Internship"]} values={jobTypes} onChange={setJobTypes} />
+          <input className="searchInput" placeholder="Min salary" value={salaryMin} onChange={(e) => setSalaryMin(normalizePriceInput(e.target.value))} />
+          <input className="searchInput" placeholder="Max salary" value={salaryMax} onChange={(e) => setSalaryMax(normalizePriceInput(e.target.value))} />
+        </div>
+      ) : null}
+      {category === "Real Estate" ? (
+        <div className="searchFilters" style={{ marginTop: 10 }}>
+          <MultiToggle label="Bedrooms" options={["1", "2", "3", "4", "5+"]} values={bedrooms} onChange={setBedrooms} />
+          <input className="searchInput" placeholder="Min size (sqm)" value={sizeMin} onChange={(e) => setSizeMin(normalizePriceInput(e.target.value))} />
+          <input className="searchInput" placeholder="Max size (sqm)" value={sizeMax} onChange={(e) => setSizeMax(normalizePriceInput(e.target.value))} />
+        </div>
+      ) : null}
+      {["Mobile Devices", "Computing & Electronics", "TV & Audio Systems"].includes(category) ? (
+        <div className="searchFilters" style={{ marginTop: 10 }}>
+          <MultiToggle label="Brand" options={["Apple", "Samsung", "Xiaomi", "Lenovo", "HP", "Dell", "Sony", "LG", "Tecno", "Infinix"]} values={brands} onChange={setBrands} />
+          <select className="select" value={condition} onChange={(e) => setCondition(e.target.value)}>
+            <option value="">Any condition</option>
+            <option value="NEW">New</option>
+            <option value="USED">Used</option>
+          </select>
+        </div>
+      ) : null}
+      {category === "Beauty & Personal Care" ? (
+        <div className="searchFilters" style={{ marginTop: 10 }}>
+          <select className="select" value={beautySubcategory} onChange={(e) => {
+            setBeautySubcategory(e.target.value);
+            setBeautyBrands([]);
+            setBeautyTypes([]);
+          }}>
+            <option value="">All beauty types</option>
+            {BEAUTY_SUBCATEGORIES.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          <MultiToggle label="Brand" options={getBeautyBrands(beautySubcategory || "Skincare").filter((item) => item !== "Other")} values={beautyBrands} onChange={setBeautyBrands} />
+          <MultiToggle label="Product Type" options={getBeautyProductTypes(beautySubcategory || "Skincare").filter((item) => item !== "Other")} values={beautyTypes} onChange={setBeautyTypes} />
+          <MultiToggle label="Gender" options={BEAUTY_GENDER_OPTIONS} values={beautyGenders} onChange={setBeautyGenders} />
+        </div>
+      ) : null}
+
+      <div className="productGrid" style={{ marginTop: 16 }}>
+        {loading ? <p>Searching...</p> : null}
+        {!loading && filtered.length === 0 ? <p>No results found.</p> : null}
+        {filtered.map((item) => {
+          const imageUrl = item.images?.[0]?.url || "/errorpage.svg";
+          const localMeta = getProfileMeta(item.vendor?.userId, null);
+          const vendorName =
+            item.vendor?.storeName || item.vendor?.fullName || localMeta?.storeName || localMeta?.fullName || "Marketplace Vendor";
+          const vendorProfileHref = item.vendor?.slug ? `/vendor/${item.vendor.slug}` : null;
+          const vendorImageId = localMeta?.profileImageId || item.vendor?.profileImageId || item.vendor?.userId || null;
+          return (
+            <article key={item.id} className="productCard">
+              <div className="productImgWrapper">
+                <Link href={`/item/${item.id}`}>
+                  <ListingCardImage src={imageUrl} alt={item.title} />
+                </Link>
+              </div>
+              <div className="productBody">
+                <div className="productPrice">{formatEtbPrice(item.price)}</div>
+                <div className="productMeta">
+                  <span className="productPricingBadge">{getListingPricingLabel(item.details)}</span>
+                </div>
+                <h3 className="productTitle">
+                  <Link href={`/item/${item.id}`}>{item.title}</Link>
+                </h3>
+                <div className="productVendorRow">
+                  {vendorProfileHref ? (
+                    <Link href={vendorProfileHref} className="productVendorLink" aria-label={`View ${vendorName} profile`}>
+                      <Avatar name={vendorName} imageId={vendorImageId} size={34} className="productVendorAvatar" />
+                      <span className="productVendorName">{vendorName}</span>
+                    </Link>
+                  ) : (
+                    <div className="productVendorLink">
+                      <Avatar name={vendorName} imageId={vendorImageId} size={34} className="productVendorAvatar" />
+                      <span className="productVendorName">{vendorName}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="productMeta">
+                  <span className="productLocation">
+                    {item.city}, {item.area}
+                  </span>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ListingCardImage({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div className={`productImageFrame ${loaded ? "isLoaded" : ""}`}>
+      {!loaded ? <span className="productImageSkeleton" aria-hidden="true" /> : null}
+      <Image src={src} alt={alt} width={400} height={320} className="productImg" onLoad={() => setLoaded(true)} />
+    </div>
+  );
+}
+
+function MultiToggle({
+  label,
+  options,
+  values,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  return (
+    <div>
+      <div className="searchTitle" style={{ fontSize: 13, marginBottom: 6 }}>{label}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {options.map((option) => {
+          const active = values.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              className={active ? "modalPrimary" : "modalSecondary"}
+              onClick={() =>
+                onChange(active ? values.filter((value) => value !== option) : [...values, option])
+              }
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

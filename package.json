@@ -1,0 +1,29 @@
+{
+  "name": "next-ecommerce",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "build": "next build",
+    "start": "node server.js",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.6.0",
+    "bcryptjs": "^2.4.3",
+    "next": "14.2.5",
+    "nodemailer": "^8.0.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.11",
+    "@types/react-dom": "18.3.1",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.5",
+    "prisma": "^6.6.0",
+    "typescript": "5.7.2"
+  }
+}

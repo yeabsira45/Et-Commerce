@@ -1,0 +1,999 @@
+.sellPage {
+  padding-bottom: 32px;
+}
+
+.sellHeaderBar {
+  background: var(--bg);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.sellHeaderInner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sellHeaderTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sellClearBtn {
+  border: 0;
+  background: transparent;
+  color: #f97373;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sellMain {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.sellCard {
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.9), rgba(241, 245, 249, 0.72));
+  border-radius: 24px;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.12);
+  max-width: 860px;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.sellCardInner {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 24px 28px 22px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.sellCardInnerCompact {
+  padding: 22px 26px 20px;
+}
+
+.sellCardTitle {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.sellCardTitleCompact {
+  margin-bottom: 14px;
+}
+
+.sellForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sellTopGrid,
+.sellGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sellSection + .sellSection {
+  margin-top: 12px;
+}
+
+.sellField {
+  position: relative;
+  display: block;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.9);
+  background: #f8fafc;
+  text-align: left;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.sellField:focus-within {
+  border-color: rgba(17, 182, 83, 0.7);
+  box-shadow: 0 0 0 4px rgba(17, 182, 83, 0.1);
+  background: #fff;
+}
+
+.sellFieldCompactWrap {
+  position: relative;
+}
+
+.sellFieldCompact {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.sellFieldFull {
+  margin-top: 12px;
+}
+
+.sellFieldLabel {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.sellRequired {
+  color: #f97373;
+  margin-left: 2px;
+}
+
+.sellInput,
+.sellTextarea,
+.sellDropdownSearch {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #0f172a;
+  font-family: inherit;
+}
+
+.sellTextarea {
+  resize: vertical;
+  min-height: 92px;
+}
+
+.sellCounter {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.sellSelect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  transition: background-color 180ms ease, box-shadow 180ms ease, transform 100ms ease;
+}
+
+.sellSelectModern {
+  min-height: 62px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.sellSelectModern:hover {
+  border-color: rgba(17, 182, 83, 0.35);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, #ffffff, #f8fffb);
+}
+
+.sellSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sellSelectDisabled {
+  box-shadow: none;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+}
+
+.sellSelectActive {
+  border-color: rgba(17, 182, 83, 0.82);
+  box-shadow: 0 0 0 4px rgba(17, 182, 83, 0.12), 0 14px 28px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #ffffff, #f3fff7);
+}
+
+.sellSelectCopy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.sellValue {
+  font-size: 14px;
+  color: #0f172a;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sellPlaceholder {
+  font-size: 14px;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.sellChevron {
+  flex: 0 0 auto;
+  font-size: 16px;
+  color: #64748b;
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.sellChevron.isOpen {
+  transform: rotate(180deg);
+  color: #0f172a;
+}
+
+.sellFieldWrapper {
+  position: relative;
+}
+
+.sellDropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  box-shadow: 0 10px 35px rgba(15, 23, 42, 0.18);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 20;
+  opacity: 0;
+  transform: translateY(-4px);
+  animation: sellDropdownFade 160ms ease-out forwards;
+}
+
+.sellDropdownModern {
+  padding: 10px 0 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.sellDropdown.isClosing {
+  animation: sellDropdownFadeOut 140ms ease-in forwards;
+}
+
+.sellDropdownSearchWrap {
+  padding: 2px 12px 8px;
+}
+
+.sellDropdownGroupLabel {
+  padding: 10px 14px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sellDropdownSearch {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #f8fafc;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.sellDropdownSearch:focus {
+  border-color: rgba(17, 182, 83, 0.7);
+  box-shadow: 0 0 0 4px rgba(17, 182, 83, 0.12);
+  background: #fff;
+}
+
+.sellDropdownItem {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 12px;
+  margin: 0 8px;
+  width: calc(100% - 16px);
+  transition: background-color 160ms ease, color 160ms ease, transform 120ms ease;
+}
+
+.sellDropdownItem:hover,
+.sellDropdownItem:focus-visible {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.sellDropdownItem.isSelected {
+  background: rgba(17, 182, 83, 0.1);
+  color: #0e9d46;
+  font-weight: 700;
+}
+
+.sellDropdownEmpty {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.sellDropdownInsights {
+  padding: 4px 0 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  margin-bottom: 6px;
+}
+
+.sellDropdownInsightHeading {
+  padding: 6px 14px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e40af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sellDropdownInsightHint {
+  margin: 0 14px 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.sellDropdownInsightBtn {
+  width: calc(100% - 16px);
+  margin: 0 8px 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.9), rgba(248, 250, 252, 0.95));
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.sellDropdownInsightBtn:hover,
+.sellDropdownInsightBtn:focus-visible {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.sellDropdownInsightPath {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.sellDropdownInsightCategory {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.sellChecklist {
+  display: grid;
+  gap: 6px;
+  padding: 2px 8px 8px;
+}
+
+.sellChecklistItem {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #0f172a;
+}
+
+.sellChecklistItem:hover {
+  background: #f8fafc;
+}
+
+.sellChecklistItem.isSelected {
+  background: rgba(17, 182, 83, 0.08);
+}
+
+.sellChecklistItem input {
+  margin-top: 2px;
+  accent-color: #16a34a;
+}
+
+.sellCatText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sellCatName {
+  font-weight: 600;
+}
+
+.sellCatCount {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sellChoiceRow,
+.sellColorGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sellChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  font: inherit;
+}
+
+.sellChip input {
+  display: none;
+}
+
+.sellChipActive {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+
+.sellColorOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.sellColorOptionActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.sellColorDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.sellColorDotBlack { background: #111827; }
+.sellColorDotWhite { background: #ffffff; }
+.sellColorDotBlue { background: #2563eb; }
+.sellColorDotRed { background: #dc2626; }
+.sellColorDotGreen { background: #16a34a; }
+.sellColorDotSilver { background: #94a3b8; }
+.sellColorDotGray { background: #6b7280; }
+.sellColorDotGold { background: #d4a017; }
+.sellColorDotBrown { background: #8b5e3c; }
+
+.sellStepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sellStepperBtn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.sellStepperBtn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.sellStepperBtn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.sellStepperBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  background: #f1f5f9;
+}
+
+.sellStepperValue {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.sellInlineError {
+  margin: 10px 0 0;
+  color: #dc2626;
+  font-size: 13px;
+}
+
+.sellPhotos {
+  margin-top: 6px;
+}
+
+.sellPhotosHeader {
+  margin-bottom: 10px;
+}
+
+.sellPhotosTitle {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sellPhotosHint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sellPhotosPrimary {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.sellPhotoDrop {
+  width: 100px;
+  height: 100px;
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.sellPhotoPlus {
+  font-size: 28px;
+  color: #10b981;
+}
+
+.sellFileInput {
+  display: none;
+}
+
+.sellFormats {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.sellPhotoList {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sellPhotoItem {
+  padding: 2px 0;
+}
+
+.sellPhotoPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.sellPhotoPreviewCard {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  aspect-ratio: 1 / 1;
+}
+
+.sellPhotoPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.sellNextBtn {
+  margin-top: 14px;
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: 0;
+  background: #e5e7eb;
+  color: #9ca3af;
+  font-weight: 700;
+  cursor: not-allowed;
+}
+
+.sellNextBtn:not(:disabled) {
+  background: #16a34a;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.sellSubcategoryRow {
+  max-width: 100%;
+  width: 100%;
+  margin: 0 0 12px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.sellSubcategoryRow .sellFieldWrapper {
+  width: 100%;
+}
+
+.sellSubcategoryRow .sellField,
+.sellSubcategoryRow .sellSelect,
+.sellSubcategoryRow .sellDropdown {
+  width: 100%;
+}
+
+.sellSubcategoryRow .sellField {
+  max-width: none;
+}
+
+.vendorAvatarPreview {
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.9), rgba(248, 250, 252, 0.96));
+}
+
+.vendorAvatarPreviewRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.vendorAvatarPreviewName {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.vendorLocationField {
+  display: grid;
+  gap: 8px;
+}
+
+.vendorSelectHeader {
+  display: grid;
+  gap: 2px;
+  padding-left: 2px;
+}
+
+.vendorSelectTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.vendorSelectHelper {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sellFieldHint {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+@keyframes sellDropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sellDropdownFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.sellModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.sellModalCard {
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px 24px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.sellModalTitle {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sellModalBody {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.sellModalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.sellModalBtn {
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.sellModalBtnGhost {
+  background: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #475569;
+}
+
+.sellModalBtnPrimary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.sellInputWithUnit {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.sellInputWithUnitInput {
+  border: 0 !important;
+  border-radius: 0 !important;
+  flex: 1;
+  min-width: 0;
+}
+
+.sellInputUnitSelect {
+  border: 0;
+  border-left: 1px solid rgba(148, 163, 184, 0.45);
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  background: #f8fafc;
+  cursor: pointer;
+  min-width: 72px;
+}
+
+.sellDetectPanel {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.65), rgba(241, 245, 249, 0.9));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.sellDetectTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: #1e40af;
+  margin-bottom: 8px;
+}
+
+.sellDetectList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sellDetectList li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.sellDetectKey {
+  color: #64748b;
+  min-width: 88px;
+}
+
+.sellDetectVal {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.sellDetectPathLine {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.45;
+}
+
+.sellSummaryInteractive .sellSelect {
+  cursor: pointer;
+}
+
+.sellSummaryInteractive .sellFieldLabel {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.sellDetectPanelWarn {
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.85), rgba(254, 252, 232, 0.95));
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.sellDetectPanelWarn .sellDetectTitle {
+  color: #b45309;
+}
+
+.sellDetectApplyBtn {
+  margin-top: 10px;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  background: #fff;
+  color: #b45309;
+}
+
+.sellDetectApplyBtn:hover {
+  background: #fffbeb;
+}
+
+.sellDetectConfirmRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.sellDetectConfirmBtn {
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid rgba(17, 182, 83, 0.55);
+  background: linear-gradient(180deg, #22c55e, #16a34a);
+  color: #fff;
+}
+
+.sellDetectConfirmBtn:hover {
+  filter: brightness(1.05);
+}
+
+.sellDetectManualBtn {
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.9);
+  background: #fff;
+  color: #475569;
+}
+
+.sellDetectManualBtn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.sellDetectManualBtnBlock {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.sellDetectSuggestList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sellDetectSuggestBtn {
+  width: 100%;
+  text-align: left;
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.sellDetectSuggestBtn:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.sellDetectSuggestPath {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.sellDetectSuggestMeta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .sellHeaderInner {
+    padding-inline: 16px;
+  }
+
+  .sellCardInner,
+  .sellCardInnerCompact {
+    padding: 20px 16px 18px;
+  }
+
+  .sellTopGrid,
+  .sellGrid {
+    grid-template-columns: 1fr;
+  }
+}
