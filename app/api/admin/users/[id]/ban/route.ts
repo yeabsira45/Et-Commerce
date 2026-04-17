@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
-import { setMockUserBanned } from "@/lib/adminMockState";
 
 type Params = { params: { id: string } };
 
@@ -13,14 +12,6 @@ export async function POST(req: Request, { params }: Params) {
 
   const body = await req.json().catch(() => ({}));
   const banned = Boolean(body.banned);
-
-  if (session.id === "demo-user") {
-    const ok = setMockUserBanned(params.id, banned);
-    if (!ok) {
-      return NextResponse.json({ error: "Cannot ban this account" }, { status: 400 });
-    }
-    return NextResponse.json({ ok: true });
-  }
 
   try {
     await prisma.user.update({

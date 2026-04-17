@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useState } from "react";
 
-export type ToastVariant = "success" | "error";
+export type ToastVariant = "success" | "warning" | "error";
 
 type ToastItem = { id: number; message: string; variant: ToastVariant };
 
@@ -29,7 +29,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             role="status"
-            className={`toastStackItem ${t.variant === "success" ? "toastStackItemSuccess" : "toastStackItemError"}`}
+            className={`toastStackItem ${
+              t.variant === "success" ? "toastStackItemSuccess" : t.variant === "warning" ? "toastStackItemWarning" : "toastStackItemError"
+            }`}
           >
             {t.message}
           </div>

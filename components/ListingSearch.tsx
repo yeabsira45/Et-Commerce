@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { categories } from "./categories";
@@ -8,7 +8,8 @@ import { formatEtbPrice, normalizePriceInput } from "@/lib/format";
 import { getListingPricingLabel } from "@/lib/listingPricing";
 import { BEAUTY_GENDER_OPTIONS, BEAUTY_SUBCATEGORIES, getBeautyBrands, getBeautyProductTypes } from "@/lib/beauty";
 import { Avatar } from "@/components/Avatar";
-import { getProfileMeta } from "@/lib/localProfile";
+import { useAppContext } from "@/components/AppContext";
+import { useToast } from "@/components/ToastProvider";
 
 type Listing = {
   id: string;
@@ -29,7 +30,7 @@ type Listing = {
     phone?: string;
     city?: string;
     area?: string;
-    profileImageId?: string;
+    profileImageUrl?: string;
   } | null;
 };
 
@@ -41,6 +42,9 @@ type Props = {
 };
 
 export function ListingSearch({ initialCategory, title, query, onQueryChange }: Props) {
+  const { savedItems, toggleSave } = useAppContext();
+  const showToast = useToast();
+  const [navigatingListingId, setNavigatingListingId] = useState<string | null>(null);
   const [internalQuery, setInternalQuery] = useState("");
   const [category, setCategory] = useState(initialCategory || "");
   const [priceMin, setPriceMin] = useState("");
@@ -62,11 +66,34 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
   const [beautyGenders, setBeautyGenders] = useState<string[]>([]);
   const [results, setResults] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const categoryOptions = useMemo(() => categories.map((c) => c.name), []);
 
-  async function runSearch() {
+  const hasActiveFilters = Boolean(
+    category ||
+      priceMin ||
+      priceMax ||
+      location ||
+      condition ||
+      brands.length ||
+      fuels.length ||
+      transmissions.length ||
+      jobTypes.length ||
+      bedrooms.length ||
+      sizeMin ||
+      sizeMax ||
+      salaryMin ||
+      salaryMax ||
+      beautySubcategory ||
+      beautyBrands.length ||
+      beautyTypes.length ||
+      beautyGenders.length
+  );
+
+  const runSearch = useCallback(async () => {
     setLoading(true);
+    setError(null);
     const params = new URLSearchParams();
     if (category) params.set("category", category);
     if (priceMin) params.set("priceMin", priceMin);
@@ -87,20 +114,48 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
     if (beautyTypes.length) params.set("beautyTypes", beautyTypes.join(","));
     if (beautyGenders.length) params.set("beautyGenders", beautyGenders.join(","));
 
-    const res = await fetch(`/api/listings/search?${params.toString()}`);
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/listings/search?${params.toString()}`);
+      if (!res.ok) {
+        setResults([]);
+        setError("We could not load listings right now. Please try again.");
+        return;
+      }
       const data = await res.json();
       setResults(data.listings || []);
+    } catch {
+      setResults([]);
+      setError("We could not load listings right now. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }
+  }, [
+    beautyBrands,
+    beautyGenders,
+    beautySubcategory,
+    beautyTypes,
+    bedrooms,
+    brands,
+    category,
+    condition,
+    fuels,
+    jobTypes,
+    location,
+    priceMax,
+    priceMin,
+    salaryMax,
+    salaryMin,
+    sizeMax,
+    sizeMin,
+    transmissions,
+  ]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       runSearch();
     }, 250);
     return () => clearTimeout(t);
-  }, [category, priceMin, priceMax, location, condition, brands, fuels, transmissions, jobTypes, bedrooms, sizeMin, sizeMax, salaryMin, salaryMax, beautySubcategory, beautyBrands, beautyTypes, beautyGenders]);
+  }, [runSearch]);
 
   useEffect(() => {
     setBrands([]);
@@ -220,19 +275,56 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
       ) : null}
 
       <div className="productGrid" style={{ marginTop: 16 }}>
-        {loading ? <p>Searching...</p> : null}
-        {!loading && filtered.length === 0 ? <p>No results found.</p> : null}
+        {loading
+          ? Array.from({ length: 6 }).map((_, index) => (
+              <article key={`search-skeleton-${index}`} className="productCard productCardSkeleton" aria-hidden="true">
+                <div className="productImgWrapper productSkeletonBlock productSkeletonImage" />
+                <div className="productBody">
+                  <div className="productSkeletonLine productSkeletonLineLg" />
+                  <div className="productSkeletonLine productSkeletonLineSm" />
+                  <div className="productSkeletonLine" />
+                  <div className="productSkeletonLine productSkeletonLineSm" />
+                  <div className="productSkeletonButton" />
+                </div>
+              </article>
+            ))
+          : null}
+        {!loading && error ? (
+          <div className="uiStateCard uiStateCardError">
+            <h3 className="uiStateTitle">Search unavailable</h3>
+            <p className="uiStateText">{error}</p>
+            <button className="uiStateAction" type="button" onClick={() => void runSearch()}>
+              Retry search
+            </button>
+          </div>
+        ) : null}
+        {!loading && !error && filtered.length === 0 ? (
+          <div className="uiStateCard">
+            <h3 className="uiStateTitle">{hasActiveFilters || activeQuery.trim() ? "No listings matched" : "No listings yet"}</h3>
+            <p className="uiStateText">
+              {hasActiveFilters || activeQuery.trim()
+                ? "Try widening your filters, changing the location, or using a shorter search phrase."
+                : "Listings will appear here as sellers start posting in this category."}
+            </p>
+          </div>
+        ) : null}
         {filtered.map((item) => {
           const imageUrl = item.images?.[0]?.url || "/errorpage.svg";
-          const localMeta = getProfileMeta(item.vendor?.userId, null);
           const vendorName =
-            item.vendor?.storeName || item.vendor?.fullName || localMeta?.storeName || localMeta?.fullName || "Marketplace Vendor";
+            item.vendor?.storeName || item.vendor?.fullName || "Marketplace Vendor";
           const vendorProfileHref = item.vendor?.slug ? `/vendor/${item.vendor.slug}` : null;
-          const vendorImageId = localMeta?.profileImageId || item.vendor?.profileImageId || item.vendor?.userId || null;
+          const vendorImageUrl = item.vendor?.profileImageUrl || null;
+          const isSaved = savedItems.some((saved) => saved.id === item.id);
+          const isNavigating = navigatingListingId === item.id;
           return (
-            <article key={item.id} className="productCard">
+            <article key={item.id} className={`productCard ${isNavigating ? "productCardPending" : ""}`}>
+              {isNavigating ? (
+                <div className="productCardLoadingOverlay" aria-hidden="true">
+                  <span className="productCardLoadingSpinner" />
+                </div>
+              ) : null}
               <div className="productImgWrapper">
-                <Link href={`/item/${item.id}`}>
+                <Link href={`/item/${item.id}`} onClick={() => setNavigatingListingId(item.id)}>
                   <ListingCardImage src={imageUrl} alt={item.title} />
                 </Link>
               </div>
@@ -242,17 +334,19 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
                   <span className="productPricingBadge">{getListingPricingLabel(item.details)}</span>
                 </div>
                 <h3 className="productTitle">
-                  <Link href={`/item/${item.id}`}>{item.title}</Link>
+                  <Link href={`/item/${item.id}`} onClick={() => setNavigatingListingId(item.id)}>
+                    {item.title}
+                  </Link>
                 </h3>
                 <div className="productVendorRow">
                   {vendorProfileHref ? (
                     <Link href={vendorProfileHref} className="productVendorLink" aria-label={`View ${vendorName} profile`}>
-                      <Avatar name={vendorName} imageId={vendorImageId} size={34} className="productVendorAvatar" />
+                      <Avatar name={vendorName} imageUrl={vendorImageUrl} size={34} className="productVendorAvatar" />
                       <span className="productVendorName">{vendorName}</span>
                     </Link>
                   ) : (
                     <div className="productVendorLink">
-                      <Avatar name={vendorName} imageId={vendorImageId} size={34} className="productVendorAvatar" />
+                      <Avatar name={vendorName} imageUrl={vendorImageUrl} size={34} className="productVendorAvatar" />
                       <span className="productVendorName">{vendorName}</span>
                     </div>
                   )}
@@ -262,6 +356,17 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
                     {item.city}, {item.area}
                   </span>
                 </div>
+                <button
+                  type="button"
+                  className="itemSecondaryBtn"
+                  onClick={() => {
+                    const wasSaved = isSaved;
+                    toggleSave({ id: item.id, title: item.title });
+                    showToast(wasSaved ? "Removed from bookmarks." : "Saved to bookmarks.", "success");
+                  }}
+                >
+                  {isSaved ? "Saved" : "Save"}
+                </button>
               </div>
             </article>
           );

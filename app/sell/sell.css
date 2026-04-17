@@ -814,6 +814,46 @@
   min-width: 72px;
 }
 
+.sellStorageGbTbRow .sellStorageGbTbControls {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sellStorageGbTbControls .sellInput {
+  flex: 1;
+  min-width: 120px;
+}
+
+.sellStorageUnitToggles {
+  display: flex;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sellStorageUnitToggle {
+  border: 0;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #f8fafc;
+  color: #64748b;
+  min-height: 42px;
+}
+
+.sellStorageUnitToggle + .sellStorageUnitToggle {
+  border-left: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.sellStorageUnitToggleActive {
+  background: #e0e7ff;
+  color: #1e3a8a;
+}
+
 .sellDetectPanel {
   grid-column: 1 / -1;
   padding: 12px 14px;

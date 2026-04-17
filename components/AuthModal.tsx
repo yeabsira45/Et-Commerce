@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAppContext } from "./AppContext";
 import { SearchableSelect } from "./form/SearchableSelect";
 import { ETHIOPIAN_CITIES } from "@/lib/cities";
-import { readPersistedUser } from "@/lib/localProfile";
 import { validatePassword } from "@/lib/passwordRules";
 import { Avatar } from "./Avatar";
+import { MAX_IMAGE_UPLOAD_MB, validateImageFile } from "@/lib/imageUploadValidation";
 
 type Props = {
   open: boolean;
@@ -211,8 +211,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
     }
 
     if (mode === "register") {
-      const persistedUser = readPersistedUser();
-      const welcomeName = persistedUser?.fullName || persistedUser?.username || "there";
+      const welcomeName = fullName.trim() || "there";
       setRegisterWelcome(`😉 Welcome ${welcomeName} !`);
       window.setTimeout(() => {
         setIdentifier("");
@@ -236,8 +235,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
       return;
     }
 
-    const persistedUser = readPersistedUser();
-    const welcomeName = persistedUser?.fullName || persistedUser?.username || "there";
+    const welcomeName = identifier.trim() || "there";
     setInlineWelcome(`😉 Welcome ${welcomeName} !`);
     window.setTimeout(() => {
       setIdentifier("");
@@ -275,7 +273,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
           <h2 className="modalTitle">{mode === "login" ? "Sign in to continue" : "Create your account"}</h2>
           <p className="modalSub">
             {mode === "login"
-              ? "Super Admin (development): type username demo and password password — no @ address. Everyone else can sign in with username, email, or phone."
+              ? "Sign in with your username, email, or phone."
               : "Create your vendor account to post listings and chat with other vendors."}
           </p>
 
@@ -293,7 +291,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                     className="modalInput"
                     autoFocus
                     required
-                    placeholder="demo"
+                    placeholder="Username, email, or phone"
                     autoComplete="username"
                   />
                 </label>
@@ -342,6 +340,12 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                           onChange={(event) => {
                             const file = event.target.files?.[0];
                             if (!file) return;
+                            const validationError = validateImageFile(file);
+                            if (validationError) {
+                              setAvatarToast(validationError);
+                              event.target.value = "";
+                              return;
+                            }
                             setProfileImageFile(file);
                             setAvatarToast("Avatar ready to save.");
                           }}
@@ -358,6 +362,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                     </div>
                   </div>
                   {avatarToast ? <p className="modalSub modalToastInline">{avatarToast}</p> : null}
+                  <p className="modalSub modalToastInline">Image files only. Max size: {MAX_IMAGE_UPLOAD_MB}MB.</p>
                 </div>
                 <label className={`modalField ${missingRequiredFields?.fullName ? "modalFieldError" : ""}`} data-invalid={missingRequiredFields?.fullName ? "true" : "false"}>
                   <span className="modalLabel">Full Name</span>

@@ -1,6 +1,51 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { listingRepositoryCreate, ListingPersistError } from "@/lib/listings/listingRepository";
+import { parseUploadIdFromValue, uploadApiPath } from "@/lib/uploadSecurity";
+import { invalidateUploadMetaCacheMany } from "@/lib/uploadMetaCache";
+
+function toPublicVendor(vendor: {
+  id: string;
+  slug: string;
+  storeName: string;
+  city: string | null;
+  area: string | null;
+  profileImageUploadId: string | null;
+}) {
+  return {
+    id: vendor.id,
+    slug: vendor.slug,
+    storeName: vendor.storeName,
+    city: vendor.city,
+    area: vendor.area,
+    profileImageUrl: vendor.profileImageUploadId ? uploadApiPath(vendor.profileImageUploadId) : null,
+  };
+}
+
+function toListingResponse(listing: {
+  id: string;
+  title: string;
+  category: string;
+  subcategory: string | null;
+  description: string | null;
+  price: unknown;
+  condition: "NEW" | "USED";
+  status: "ACTIVE" | "SOLD" | "ARCHIVED";
+  city: string;
+  area: string;
+  details: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  images: Array<{ uploadId: string; sortOrder: number }>;
+  vendor: { id: string; slug: string; storeName: string; city: string | null; area: string | null; profileImageUploadId: string | null };
+}) {
+  return {
+    ...listing,
+    images: listing.images.map((img) => ({ url: uploadApiPath(img.uploadId), uploadId: img.uploadId, sortOrder: img.sortOrder })),
+    vendor: toPublicVendor(listing.vendor),
+  };
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -15,9 +60,14 @@ export async function GET(req: Request) {
     const listings = await prisma.listing.findMany({
       where: { vendorId: user.vendor.id },
       orderBy: { createdAt: "desc" },
-      include: { images: true, vendor: true },
+      include: {
+        images: { select: { uploadId: true, sortOrder: true } },
+        vendor: {
+          select: { id: true, slug: true, storeName: true, city: true, area: true, profileImageUploadId: true },
+        },
+      },
     });
-    return NextResponse.json({ listings });
+    return NextResponse.json({ listings: listings.map(toListingResponse) });
   }
 
   const listings = await prisma.listing.findMany({
@@ -25,11 +75,13 @@ export async function GET(req: Request) {
     orderBy: { createdAt: "desc" },
     take: Math.min(limit, 50),
     include: {
-      images: { orderBy: { sortOrder: "asc" } },
-      vendor: true,
+      images: { orderBy: { sortOrder: "asc" }, select: { uploadId: true, sortOrder: true } },
+      vendor: {
+        select: { id: true, slug: true, storeName: true, city: true, area: true, profileImageUploadId: true },
+      },
     },
   });
-  return NextResponse.json({ listings });
+  return NextResponse.json({ listings: listings.map(toListingResponse) });
 }
 
 export async function POST(req: Request) {
@@ -54,6 +106,11 @@ export async function POST(req: Request) {
 
     if (!title || !category || !city || !area) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const titleTrimmed = String(title).trim();
+    if (titleTrimmed.length < 3) {
+      return NextResponse.json({ error: "Title must be at least 3 characters." }, { status: 400 });
     }
 
     const normalizedPrice =
@@ -96,38 +153,68 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Please add a vendor phone number before posting an item." }, { status: 400 });
     }
 
-    const listing = await prisma.listing.create({
-      data: {
-        title,
-        category,
-        subcategory: subcategory || null,
-        description: description || null,
-        price: normalizedPrice,
-        condition: condition === "NEW" ? "NEW" : "USED",
-        city,
-        area,
-        details: details || null,
-        vendorId,
-        ownerId: user.id,
-        images: {
-          create:
-            Array.isArray(images) && images.length > 0
-              ? images.map((url: string, idx: number) => ({
-                  url,
-                  sortOrder: idx,
-                }))
-              : [],
-        },
-      },
-      include: {
-        images: true,
-        vendor: true,
-      },
+    const requestedImageUploadIds = Array.isArray(images)
+      ? images.map((value: unknown) => parseUploadIdFromValue(value)).filter((id): id is string => Boolean(id))
+      : [];
+
+    if (!requestedImageUploadIds.length) {
+      return NextResponse.json({ error: "At least one uploaded image is required." }, { status: 400 });
+    }
+
+    const ownedUploads = await prisma.upload.findMany({
+      where: { id: { in: requestedImageUploadIds }, ownerUserId: user.id },
+      select: { id: true },
+    });
+    if (ownedUploads.length !== requestedImageUploadIds.length) {
+      return NextResponse.json({ error: "One or more images are not owned by your account." }, { status: 403 });
+    }
+
+    const listing = await listingRepositoryCreate({
+      title: titleTrimmed,
+      category,
+      subcategory: subcategory || null,
+      description: description || null,
+      price: normalizedPrice,
+      condition: condition === "NEW" ? "NEW" : "USED",
+      city,
+      area,
+      vendorId,
+      ownerId: user.id,
+      rawDetails: details,
+      images: requestedImageUploadIds.map((uploadId: string, idx: number) => ({
+        uploadId,
+        sortOrder: idx,
+      })),
     });
 
-    return NextResponse.json({ listing });
-  } catch(e) {
-    console.log(e)
+    await prisma.upload.updateMany({
+      where: { id: { in: requestedImageUploadIds }, ownerUserId: user.id },
+      data: {
+        linkedEntityType: "LISTING",
+        linkedEntityId: listing.id,
+        ownerVendorId: vendorId,
+      },
+    });
+    invalidateUploadMetaCacheMany(requestedImageUploadIds);
+
+    return NextResponse.json({
+      listing: toListingResponse({
+        ...listing,
+        images: listing.images.map((img) => ({ uploadId: img.uploadId, sortOrder: img.sortOrder })),
+        vendor: {
+          id: listing.vendor.id,
+          slug: listing.vendor.slug,
+          storeName: listing.vendor.storeName,
+          city: listing.vendor.city,
+          area: listing.vendor.area,
+          profileImageUploadId: listing.vendor.profileImageUploadId,
+        },
+      }),
+    });
+  } catch (e) {
+    if (e instanceof ListingPersistError) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
     return NextResponse.json({ error: "Failed to create listing" }, { status: 500 });
   }
 }

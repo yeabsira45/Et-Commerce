@@ -5,8 +5,8 @@ import { useToast } from "@/components/ToastProvider";
 import { formatEtbPrice, normalizePriceInput } from "@/lib/format";
 import { canBanUsers, canModifyListing } from "@/lib/dashboardPermissions";
 import type { UserProfile } from "@/components/AppContext";
-import { readFileAsDataUrl } from "@/lib/fileDataUrl";
 import { dashboardToast } from "@/lib/dashboardToastCopy";
+import { validateImageFile } from "@/lib/imageUploadValidation";
 
 type AdminUserRow = {
   id: string;
@@ -192,10 +192,27 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
   }, [listingPage, listingTotalPages]);
 
   async function applyImageFile(file: File) {
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      showToast(validationError, "error");
+      return;
+    }
     try {
-      const url = await readFileAsDataUrl(file);
-      setEditImageUrl(url);
-      showToast(dashboardToast.listingImageDemo);
+      const form = new FormData();
+      form.append("files", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      if (!uploadRes.ok) {
+        showToast(dashboardToast.imageReadFailed, "error");
+        return;
+      }
+      const uploadPayload = (await uploadRes.json().catch(() => ({}))) as { urls?: string[] };
+      const nextUrl = uploadPayload.urls?.[0];
+      if (!nextUrl) {
+        showToast(dashboardToast.imageReadFailed, "error");
+        return;
+      }
+      setEditImageUrl(nextUrl);
+      showToast("Image uploaded.");
     } catch {
       showToast(dashboardToast.imageReadFailed, "error");
     }
@@ -205,10 +222,6 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
 
   async function toggleBan(target: AdminUserRow) {
     if (!canBanUsers(user.role)) return;
-    if (target.id === "demo-user") {
-      showToast(dashboardToast.adminBanBlocked, "error");
-      return;
-    }
     const next = !target.banned;
     if (next) {
       if (!window.confirm(`Are you sure you want to ban ${target.username}?`)) return;
@@ -229,7 +242,6 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
   }
 
   async function deleteUser(target: AdminUserRow) {
-    if (target.id === "demo-user") return;
     if (!window.confirm(`Are you sure you want to delete user "${target.username}"? This cannot be undone.`)) return;
     const res = await fetch(`/api/admin/users/${target.id}`, { method: "DELETE" });
     if (!res.ok) {
@@ -242,10 +254,6 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
   }
 
   async function saveUser(targetId: string) {
-    if (targetId === "demo-user") {
-      showToast(dashboardToast.userEditBlocked, "error");
-      return;
-    }
     const res = await fetch(`/api/admin/users/${targetId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -315,7 +323,7 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
     <div>
       <h2>Admin</h2>
       <p className="modalSub">
-        Super Admin view. Demo data is held in memory until the server restarts. Search, sort, and pagination help at scale.
+        Super Admin view. Search, sort, and pagination help at scale.
       </p>
 
       <h3 className="sellCardTitle" style={{ marginTop: 24, fontSize: "1.05rem" }}>
@@ -390,29 +398,23 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
                 {u.vendor?.storeName ? <div className="modalThreadMeta">{u.vendor.storeName}</div> : null}
               </div>
               <div className="adminRowActions">
-                {u.id !== "demo-user" ? (
-                  <>
-                    <button
-                      type="button"
-                      className="modalSecondary"
-                      onClick={() => {
-                        setEditUserId(u.id);
-                        setEditUserUsername(u.username);
-                        setEditUserEmail(u.email);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button type="button" className="modalSecondary" onClick={() => toggleBan(u)}>
-                      {u.banned ? "Unban" : "Ban"}
-                    </button>
-                    <button type="button" className="modalSecondary" onClick={() => deleteUser(u)}>
-                      Delete user
-                    </button>
-                  </>
-                ) : (
-                  <span className="modalThreadMeta">Demo admin</span>
-                )}
+                <button
+                  type="button"
+                  className="modalSecondary"
+                  onClick={() => {
+                    setEditUserId(u.id);
+                    setEditUserUsername(u.username);
+                    setEditUserEmail(u.email);
+                  }}
+                >
+                  Edit
+                </button>
+                <button type="button" className="modalSecondary" onClick={() => toggleBan(u)}>
+                  {u.banned ? "Unban" : "Ban"}
+                </button>
+                <button type="button" className="modalSecondary" onClick={() => deleteUser(u)}>
+                  Delete user
+                </button>
               </div>
             </>
           )}
@@ -491,7 +493,7 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
                     if (file?.type.startsWith("image/")) void applyImageFile(file);
                   }}
                 >
-                  <span className="modalThreadMeta">Drop image (demo) or choose file</span>
+                  <span className="modalThreadMeta">Drop image or choose file</span>
                   <label className="modalUploadBtn" style={{ marginTop: 8 }}>
                     Choose file
                     <input

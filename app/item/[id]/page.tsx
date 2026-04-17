@@ -3,14 +3,14 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "@/components/AppContext";
 import { AuthModal } from "@/components/AuthModal";
 import { useToast } from "@/components/ToastProvider";
 import { formatEtbPrice } from "@/lib/format";
 import { getListingPricingLabel } from "@/lib/listingPricing";
+import { LISTING_DETAILS_SCHEMA_VERSION_KEY } from "@/lib/listings/listingSchemaVersion";
 import { Avatar } from "@/components/Avatar";
-import { getProfileMeta } from "@/lib/localProfile";
 
 type Listing = {
   id: string;
@@ -32,7 +32,7 @@ type Listing = {
     slug?: string;
     userId?: string;
     fullName?: string;
-    profileImageId?: string;
+    profileImageUrl?: string;
   };
   vendorRating?: number;
   vendorReviewCount?: number;
@@ -87,46 +87,137 @@ type SpecIconKind =
 
 export default function ItemPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { startChat, user } = useAppContext();
+  const { startChat, user, savedItems, toggleSave } = useAppContext();
   const showToast = useToast();
   const [listing, setListing] = useState<Listing | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
   const [contactRevealed, setContactRevealed] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const lightboxCloseBtnRef = useRef<HTMLButtonElement | null>(null);
+  const lightboxContentRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     async function load() {
-      const res = await fetch(`/api/listings/${params.id}`);
-      if (res.ok) {
+      setLoadError(null);
+      try {
+        const res = await fetch(`/api/listings/${params.id}`);
+        if (!res.ok) {
+          setListing(null);
+          setLoadError(res.status === 404 ? "This listing is no longer available." : "We could not load this listing right now.");
+          setLoading(false);
+          return;
+        }
         const data = await res.json();
         setListing(data.listing);
         setContactRevealed(false);
+        setActiveImageIndex(0);
+      } catch {
+        setListing(null);
+        setLoadError("We could not load this listing right now.");
       }
       setLoading(false);
     }
     load();
   }, [params.id]);
 
+  async function handleShare() {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+    const shareData = {
+      title: listing?.title || "ET-Commerce listing",
+      text: listing ? `${listing.title} in ${listing.city}, ${listing.area}` : "Check out this listing on ET-Commerce.",
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+      await navigator.clipboard.writeText(shareUrl);
+      showToast("Listing link copied.", "success");
+    } catch {
+      showToast("We could not share this listing right now.", "error");
+    }
+  }
+
   const sellerMeta = useMemo(() => {
     if (!listing?.vendor) return null;
     const v = listing.vendor;
-    const localMeta = getProfileMeta(v.userId, null);
     const backendPhone = (v.phone || "").trim();
     return {
-      fullName: v.fullName || localMeta?.fullName || v.storeName || "Vendor",
-      profileImageId: v.profileImageId || localMeta?.profileImageId,
+      fullName: v.fullName || v.storeName || "Vendor",
+      profileImageUrl: v.profileImageUrl,
       storeName: v.storeName || "Vendor Store",
       city: (v.city || "").trim() || listing.city,
-      phone: backendPhone || (localMeta?.phone || "").trim(),
+      phone: backendPhone,
     };
   }, [listing]);
 
+  /** Must run every render — never after an early return (Rules of Hooks). */
+  useEffect(() => {
+    if (!fullscreenOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setFullscreenOpen(false);
+        return;
+      }
+      if (e.key === "Tab" && lightboxContentRef.current) {
+        const focusable = lightboxContentRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+      if (!listing) return;
+      const n = listing.images?.length ? listing.images.length : 1;
+      if (n <= 1) return;
+      if (e.key === "ArrowRight") {
+        setActiveImageIndex((prev) => (prev + 1) % n);
+      } else if (e.key === "ArrowLeft") {
+        setActiveImageIndex((prev) => (prev - 1 + n) % n);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullscreenOpen, listing]);
+
+  useEffect(() => {
+    if (!fullscreenOpen) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.setTimeout(() => {
+      lightboxCloseBtnRef.current?.focus();
+    }, 0);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus();
+    };
+  }, [fullscreenOpen]);
+
   if (loading) {
     return (
-      <div className="container pageGrid">
-        <p>Loading listing...</p>
+      <div className="container pageLoader" role="status" aria-live="polite" aria-label="Loading listing">
+        <div className="pageLoaderCard pageLoaderCardWide">
+          <div className="pageLoaderSpinner" aria-hidden="true" />
+          <div className="pageLoaderText">Loading listing details...</div>
+        </div>
       </div>
     );
   }
@@ -134,24 +225,36 @@ export default function ItemPage({ params }: { params: { id: string } }) {
   if (!listing) {
     return (
       <div className="container pageGrid">
-        <p>Item not found.</p>
-        <button type="button" onClick={() => router.back()}>
-          Go back
-        </button>
+        <div className="uiStateCard uiStateCardError">
+          <h1 className="uiStateTitle">Listing unavailable</h1>
+          <p className="uiStateText">{loadError || "This item could not be found."}</p>
+          <div className="uiStateActions">
+            <button type="button" className="uiStateAction" onClick={() => router.refresh()}>
+              Retry
+            </button>
+            <button type="button" className="uiStateAction uiStateActionSecondary" onClick={() => router.back()}>
+              Go back
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   const imageUrl = listing.images?.[0]?.url || "/errorpage.svg";
+  const galleryImages = listing.images?.length ? listing.images : [{ url: "/errorpage.svg" }];
+  const safeImageIndex = Math.min(activeImageIndex, galleryImages.length - 1);
+  const activeImageUrl = galleryImages[safeImageIndex]?.url || imageUrl;
   const specs = buildSpecs(listing);
   const sellerLabel = sellerMeta?.storeName || listing.vendor?.storeName || "Vendor";
   const sellerRating = `${(listing.vendorRating ?? 0).toFixed(1)} (${listing.vendorReviewCount ?? 0} reviews)`;
   const sellerProfileHref = listing.vendor?.slug ? `/vendor/${listing.vendor.slug}` : null;
   const sellerPhone = sellerMeta?.phone?.trim() || listing.vendor?.phone?.trim() || "";
+  const isSaved = savedItems.some((item) => item.id === listing.id);
 
   function handleShowContact() {
     if (!user) {
-      showToast("Please log in or create an account before contacting this vendor.", "error");
+      showToast("You must login or register first to contact this seller.", "warning");
       setAuthOpen(true);
       return;
     }
@@ -166,13 +269,51 @@ export default function ItemPage({ params }: { params: { id: string } }) {
     window.location.href = `tel:${sellerPhone.replace(/\s+/g, "")}`;
   }
 
+  function goToNextImage() {
+    setActiveImageIndex((prev) => (prev + 1) % galleryImages.length);
+  }
+
+  function goToPreviousImage() {
+    setActiveImageIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length);
+  }
+
   return (
     <div className="itemPage">
       <div className="container itemLayout">
         <div className="itemGallery">
           <div className="itemMainImage">
-            <Image src={imageUrl} alt={listing.title} width={640} height={480} priority />
+            <button
+              type="button"
+              className="itemMainImageTrigger"
+              onClick={() => setFullscreenOpen(true)}
+              aria-label="View image fullscreen"
+            >
+              <Image src={activeImageUrl} alt={listing.title} width={640} height={480} priority />
+            </button>
+            <button
+              type="button"
+              className="itemFullscreenBtn"
+              onClick={() => setFullscreenOpen(true)}
+              aria-label="View fullscreen"
+            >
+              View fullscreen
+            </button>
           </div>
+          {galleryImages.length > 1 ? (
+            <div className="itemThumbRow">
+              {galleryImages.map((img, idx) => (
+                <button
+                  key={`${img.url}-${idx}`}
+                  type="button"
+                  className={`itemThumbBtn ${idx === safeImageIndex ? "isActive" : ""}`}
+                  onClick={() => setActiveImageIndex(idx)}
+                  aria-label={`View image ${idx + 1}`}
+                >
+                  <Image src={img.url} alt={`${listing.title} ${idx + 1}`} width={120} height={90} className="itemThumbImg" />
+                </button>
+              ))}
+            </div>
+          ) : null}
           <h1 className="itemTitle">{listing.title}</h1>
           <div className="itemLocation">
             {listing.city}, {listing.area}
@@ -200,9 +341,9 @@ export default function ItemPage({ params }: { params: { id: string } }) {
             <ul>
               <li>Avoid paying in advance, even for delivery</li>
               <li>Meet with the seller at a safe public place</li>
-              <li>Inspect the item and ensure it's exactly what you want</li>
-              <li>Make sure that the packed item is the one you've inspected</li>
-              <li>Only pay if you're satisfied</li>
+              <li>Inspect the item and ensure it&apos;s exactly what you want</li>
+              <li>Make sure that the packed item is the one you&apos;ve inspected</li>
+              <li>Only pay if you&apos;re satisfied</li>
               <li>Contact admin@commerceet.com for any suspicious item/vendor</li>
             </ul>
           </div>
@@ -212,7 +353,7 @@ export default function ItemPage({ params }: { params: { id: string } }) {
           <div className="itemSidebarSection">
             {sellerProfileHref ? (
               <Link href={sellerProfileHref} className="itemSellerRow itemSellerLink">
-                <Avatar name={sellerMeta?.fullName || sellerLabel} imageId={sellerMeta?.profileImageId} size={44} className="itemSellerAvatarImg" />
+                <Avatar name={sellerMeta?.fullName || sellerLabel} imageUrl={sellerMeta?.profileImageUrl} size={44} className="itemSellerAvatarImg" />
                 <div className="itemSellerMeta">
                   <div className="itemSellerName">{sellerLabel}</div>
                   <div className="itemSellerRating">{sellerRating}</div>
@@ -220,7 +361,7 @@ export default function ItemPage({ params }: { params: { id: string } }) {
               </Link>
             ) : (
               <div className="itemSellerRow">
-                <Avatar name={sellerMeta?.fullName || sellerLabel} imageId={sellerMeta?.profileImageId} size={44} className="itemSellerAvatarImg" />
+                <Avatar name={sellerMeta?.fullName || sellerLabel} imageUrl={sellerMeta?.profileImageUrl} size={44} className="itemSellerAvatarImg" />
                 <div className="itemSellerMeta">
                   <div className="itemSellerName">{sellerLabel}</div>
                   <div className="itemSellerRating">{sellerRating}</div>
@@ -233,16 +374,30 @@ export default function ItemPage({ params }: { params: { id: string } }) {
 
           <div className="itemSidebarSection itemSidebarActions">
             <button
+              className="itemSecondaryBtn"
+              type="button"
+              onClick={() => {
+                const wasSaved = isSaved;
+                toggleSave({ id: listing.id, title: listing.title });
+                showToast(wasSaved ? "Removed from bookmarks." : "Saved to bookmarks.", "success");
+              }}
+            >
+              {isSaved ? "Saved" : "Save"}
+            </button>
+            <button className="itemSecondaryBtn" type="button" onClick={() => void handleShare()}>
+              Share
+            </button>
+            <button
               className="itemPrimaryBtn"
               type="button"
               onClick={handleShowContact}
             >
-              {contactRevealed && sellerPhone ? `Call ${sellerPhone}` : "Show Contact"}
+              {contactRevealed && sellerPhone ? `Call ${sellerPhone}` : "Contact seller"}
             </button>
-            {!user ? <p className="itemSidebarHint">Sign in to view the seller's contact details.</p> : null}
+            {!user ? <p className="itemSidebarHint">Sign in to contact the seller.</p> : null}
             {contactRevealed ? (
               <div className="itemContactInline itemContactInlineProminent">
-                <Avatar name={sellerMeta?.fullName || sellerLabel} imageId={sellerMeta?.profileImageId} size={54} />
+                <Avatar name={sellerMeta?.fullName || sellerLabel} imageUrl={sellerMeta?.profileImageUrl} size={54} />
                 <div className="itemContactCopy itemContactCopyProminent">
                   <strong className="itemContactName">{sellerMeta?.fullName || sellerLabel}</strong>
                   <span className="itemContactLine">Store: {sellerMeta?.storeName || sellerLabel}</span>
@@ -272,35 +427,44 @@ export default function ItemPage({ params }: { params: { id: string } }) {
               type="button"
               onClick={async () => {
                 if (!user) {
-                  showToast("Please log in or create an account before starting a conversation.", "error");
+                  showToast("You must login or register first to contact this seller.", "warning");
                   setAuthOpen(true);
                   return;
                 }
                 const conversationId = await startChat(listing.id, message || "Hi, is this still available?");
-                router.push(conversationId ? `/messages?conversation=${conversationId}` : "/messages");
+                if (!conversationId) {
+                  showToast("We could not start the conversation. Please try again.", "error");
+                  return;
+                }
+                router.push(`/messages?conversation=${conversationId}`);
               }}
             >
-              Start Chat
+              Message seller
             </button>
             <button
               className="itemSecondaryBtn"
               type="button"
               onClick={async () => {
                 if (!user) {
-                  showToast("Please log in or create an account before contacting this vendor.", "error");
+                  showToast("You must login or register first to report a listing.", "warning");
                   setAuthOpen(true);
                   return;
                 }
                 const reason = window.prompt("Why are you reporting this listing?");
                 if (!reason) return;
                 setReporting(true);
-                await fetch("/api/reports", {
+                const response = await fetch("/api/reports", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ targetType: "listing", targetId: listing.id, reason }),
                 });
                 setReporting(false);
-                showToast("Report submitted.");
+                if (!response.ok) {
+                  const payload = (await response.json().catch(() => ({}))) as { error?: string };
+                  showToast(payload.error || "Could not submit your report. Please try again.", "error");
+                  return;
+                }
+                showToast("Report submitted.", "success");
               }}
               disabled={reporting}
             >
@@ -316,6 +480,34 @@ export default function ItemPage({ params }: { params: { id: string } }) {
       </div>
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      {fullscreenOpen ? (
+        <div className="itemLightbox" role="dialog" aria-modal="true" aria-label="Fullscreen listing image">
+          <button type="button" className="itemLightboxBackdrop" onClick={() => setFullscreenOpen(false)} aria-label="Close fullscreen image" />
+          <div className="itemLightboxContent" ref={lightboxContentRef}>
+            <button ref={lightboxCloseBtnRef} type="button" className="itemLightboxClose" onClick={() => setFullscreenOpen(false)} aria-label="Close">
+              ×
+            </button>
+            {galleryImages.length > 1 ? (
+              <button type="button" className="itemLightboxNav itemLightboxPrev" onClick={goToPreviousImage} aria-label="Previous image">
+                ‹
+              </button>
+            ) : null}
+            <div className="itemLightboxImageWrap">
+              <Image src={activeImageUrl} alt={listing.title} width={1400} height={1000} className="itemLightboxImage" />
+              <div className="itemLightboxWatermark" aria-hidden="true">
+                {Array.from({ length: 30 }).map((_, idx) => (
+                  <span key={`wm-full-${idx}`}>ET-Commerce</span>
+                ))}
+              </div>
+            </div>
+            {galleryImages.length > 1 ? (
+              <button type="button" className="itemLightboxNav itemLightboxNext" onClick={goToNextImage} aria-label="Next image">
+                ›
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -338,9 +530,13 @@ function buildSpecs(listing: Listing): Spec[] {
     "Internal Storage Unit",
     "Storage Value",
     "Storage Unit",
+    "GPU Vendor",
+    "GPU Other Name",
+    "Computer OS Other",
     "pricing_type",
     "Price Type",
     "Negotiable?",
+    LISTING_DETAILS_SCHEMA_VERSION_KEY,
   ]);
   const entries = Object.entries(details).filter(
     ([key, value]) => !excluded.has(key) && value !== undefined && value !== null && String(value).trim() !== ""
@@ -358,7 +554,8 @@ function buildSpecs(listing: Listing): Spec[] {
     Smartphones: ["Brand", "Model", "Condition", "RAM", "Internal Storage", "Screen Size", "Operating System", "Battery Capacity (mAh)", "Main Camera", "Selfie Camera", "Color"],
     "Feature Phones": ["Brand", "Model", "Condition", "RAM", "Internal Storage", "Screen Size", "Operating System", "Battery Capacity (mAh)", "Main Camera", "Selfie Camera", "Color"],
     Televisions: ["Brand", "Model", "Type", "Screen Size", "Display Tech", "Resolution", "Smart TV", "HDMI Ports"],
-    Laptops: ["Brand", "Model", "Processor (CPU)", "Graphics (GPU)", "RAM", "Storage", "Screen Size", "Operating System", "Battery Life", "Condition"],
+    Laptops: ["Brand", "Model", "Processor (CPU)", "Graphics (GPU)", "RAM", "Storage", "Screen Size", "Operating System", "Battery Capacity (mAh)", "Condition"],
+    "Desktop Computers": ["Brand", "Model", "Processor (CPU)", "Graphics (GPU)", "RAM", "Storage", "Motherboard", "Power Supply (PSU)", "Case Type", "Operating System", "Condition"],
     Radio: ["Brand", "Model", "Type", "Connectivity", "Condition"],
   };
 

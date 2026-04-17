@@ -3,11 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { createSessionToken, hashPassword, hashToken, setSessionCookie } from "@/lib/auth";
 import { deriveStoreName, uniqueUsername, uniqueVendorSlug } from "@/lib/vendorNaming";
 import { validatePassword } from "@/lib/passwordRules";
+import { uploadApiPath } from "@/lib/uploadSecurity";
+import { invalidateUploadMetaCache } from "@/lib/uploadMetaCache";
 
 export async function POST(req: Request) {
   try {
-    const { fullName, email, password, storeName, city, area, street, phone } = await req.json();
-    if (!fullName || !email || !password || !city || !phone) {
+    const { fullName, email, password, storeName, city, area, street, phone, profileImageUploadId } = await req.json();
+    if (!fullName || !email || !password || !city) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
@@ -17,7 +19,10 @@ export async function POST(req: Request) {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedPhone = String(phone).trim();
+    const normalizedPhone = String(phone ?? "").trim();
+    if (!normalizedPhone) {
+      return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
+    }
     const resolvedStoreName = deriveStoreName(String(fullName), storeName);
 
     const existingEmail = await prisma.user.findFirst({
@@ -36,6 +41,18 @@ export async function POST(req: Request) {
     const passwordHash = await hashPassword(password);
     const username = await uniqueUsername(String(fullName).trim());
     const finalSlug = await uniqueVendorSlug(resolvedStoreName);
+    let safeProfileImageUploadId: string | null = null;
+    if (typeof profileImageUploadId === "string" && profileImageUploadId.trim()) {
+      const upload = await prisma.upload.findUnique({
+        where: { id: profileImageUploadId.trim() },
+        select: { id: true, ownerUserId: true },
+      });
+      if (upload && upload.ownerUserId) {
+        // Ownership is validated after user creation by relinking owner in transaction below.
+        safeProfileImageUploadId = upload.id;
+      }
+    }
+
     const user = await prisma.user.create({
       data: {
         username,
@@ -50,11 +67,24 @@ export async function POST(req: Request) {
             area,
             street,
             phone: normalizedPhone,
+            profileImageUploadId: safeProfileImageUploadId,
           },
         },
       },
       include: { vendor: true },
     });
+
+    if (safeProfileImageUploadId) {
+      await prisma.upload.updateMany({
+        where: { id: safeProfileImageUploadId, ownerUserId: user.id },
+        data: {
+          ownerVendorId: user.vendor?.id || null,
+          linkedEntityType: "VENDOR_PROFILE",
+          linkedEntityId: user.vendor?.id || null,
+        },
+      });
+      invalidateUploadMetaCache(safeProfileImageUploadId);
+    }
 
     const token = createSessionToken();
     const tokenHash = hashToken(token);
@@ -70,7 +100,14 @@ export async function POST(req: Request) {
         username: user.username,
         email: user.email,
         role: user.role,
-        vendor: user.vendor,
+        vendor: user.vendor
+          ? {
+              ...user.vendor,
+              profileImageUrl: user.vendor.profileImageUploadId
+                ? uploadApiPath(user.vendor.profileImageUploadId)
+                : null,
+            }
+          : null,
       },
     });
   } catch (error) {

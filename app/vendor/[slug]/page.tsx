@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAppContext } from "@/components/AppContext";
 import { Avatar } from "@/components/Avatar";
-import { getProfileMeta } from "@/lib/localProfile";
+import { useToast } from "@/components/ToastProvider";
 
 type VendorData = {
   id: string;
@@ -18,13 +18,16 @@ type VendorData = {
   updatedAt?: string;
   userId: string;
   user?: { username?: string; email?: string; createdAt?: string };
-  profileImageId?: string;
+  profileImageUrl?: string;
   listings: { id: string; title: string; city: string; area: string; images?: { url: string }[] }[];
 };
 
 export default function VendorProfilePage({ params }: { params: { slug: string } }) {
   const { user } = useAppContext();
+  const showToast = useToast();
   const [vendor, setVendor] = useState<VendorData | null>(null);
+  const [loadingVendor, setLoadingVendor] = useState(true);
+  const [vendorError, setVendorError] = useState<string | null>(null);
   const [reviews, setReviews] = useState<{ id: string; rating: number; comment?: string | null; createdAt: string; reviewer?: { username: string } }[]>([]);
   const [averageRating, setAverageRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -35,13 +38,25 @@ export default function VendorProfilePage({ params }: { params: { slug: string }
 
   useEffect(() => {
     async function load() {
-      const res = await fetch(`/api/vendors/${params.slug}`);
-      if (res.ok) {
+      setVendorError(null);
+      setLoadingVendor(true);
+      try {
+        const res = await fetch(`/api/vendors/${params.slug}`);
+        if (!res.ok) {
+          setVendor(null);
+          setVendorError(res.status === 404 ? "This vendor profile could not be found." : "We could not load this vendor right now.");
+          setLoadingVendor(false);
+          return;
+        }
         const data = await res.json();
         setVendor(data.vendor);
+      } catch {
+        setVendor(null);
+        setVendorError("We could not load this vendor right now.");
       }
+      setLoadingVendor(false);
     }
-    load();
+    void load();
   }, [params.slug]);
 
   useEffect(() => {
@@ -60,36 +75,74 @@ export default function VendorProfilePage({ params }: { params: { slug: string }
 
   async function reportVendor() {
     if (!user) {
-      alert("Please sign in to report this vendor.");
+      showToast("You must login or register first to report this seller.", "warning");
       return;
     }
     const reason = window.prompt("Why are you reporting this vendor?");
     if (!reason) return;
-    await fetch("/api/reports", {
+    const response = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetType: "user", targetId: vendor?.userId, reason }),
     });
-    alert("Report submitted.");
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      showToast(payload.error || "Could not submit your report. Please try again.", "error");
+      return;
+    }
+    showToast("Report submitted.", "success");
+  }
+
+  async function handleShare() {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+    const shareData = {
+      title: vendor?.storeName || "ET-Commerce vendor",
+      text: vendor ? `Browse ${vendor.storeName} on ET-Commerce.` : "Check out this seller on ET-Commerce.",
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+      await navigator.clipboard.writeText(shareUrl);
+      showToast("Vendor link copied.", "success");
+    } catch {
+      showToast("We could not share this vendor right now.", "error");
+    }
+  }
+
+  if (loadingVendor) {
+    return (
+      <div className="container pageLoader" role="status" aria-live="polite" aria-label="Loading vendor profile">
+        <div className="pageLoaderCard pageLoaderCardWide">
+          <div className="pageLoaderSpinner" aria-hidden="true" />
+          <div className="pageLoaderText">Loading vendor profile...</div>
+        </div>
+      </div>
+    );
   }
 
   if (!vendor) {
     return (
       <div className="container pageGrid">
-        <p>Loading vendor profile...</p>
+        <div className="uiStateCard uiStateCardError">
+          <h1 className="uiStateTitle">Vendor unavailable</h1>
+          <p className="uiStateText">{vendorError || "This vendor profile could not be found."}</p>
+        </div>
       </div>
     );
   }
 
-  const localMeta = getProfileMeta(vendor.userId, vendor.user?.email || null);
-  const displayName = localMeta?.fullName || vendor.user?.username || vendor.storeName;
-  const profileImageId = vendor.profileImageId || localMeta?.profileImageId;
+  const displayName = vendor.user?.username || vendor.storeName;
+  const profileImageUrl = vendor.profileImageUrl;
 
   return (
     <div className="container pageGrid">
       <div className="card vendorProfileCard">
         <div className="vendorHero">
-          <Avatar name={displayName} imageId={profileImageId} size={88} className="vendorHeroAvatar" />
+          <Avatar name={displayName} imageUrl={profileImageUrl} size={88} className="vendorHeroAvatar" />
           <div>
             <h2>{vendor.storeName}</h2>
             <p className="modalSub">{displayName}</p>
@@ -97,17 +150,23 @@ export default function VendorProfilePage({ params }: { params: { slug: string }
               Rating: {averageRating.toFixed(1)} - {reviewCount} review{reviewCount === 1 ? "" : "s"}
             </p>
             <p className="modalSub">
-              {vendor.city}, {vendor.area} - {vendor.phone}
+              {vendor.city}, {vendor.area}
             </p>
-            {vendor.street ? <p className="modalSub">Address: {vendor.street}</p> : null}
-            <p className="modalSub">Store slug: {vendor.slug}</p>
-            {vendor.user?.email ? <p className="modalSub">Email: {vendor.user.email}</p> : null}
+            {vendor.street && user ? <p className="modalSub">Address: {vendor.street}</p> : null}
+            {user ? <p className="modalSub">Store slug: {vendor.slug}</p> : null}
+            {user ? <p className="modalSub">Phone: {vendor.phone}</p> : <p className="modalSub">Login to view seller contact details.</p>}
+            {user && vendor.user?.email ? <p className="modalSub">Email: {vendor.user.email}</p> : null}
             {vendor.createdAt ? <p className="modalSub">Joined: {new Date(vendor.createdAt).toLocaleDateString()}</p> : null}
           </div>
         </div>
-        <button type="button" className="modalSecondary" onClick={reportVendor}>
-          Report user
-        </button>
+        <div className="uiStateActions" style={{ marginTop: 12 }}>
+          <button type="button" className="modalSecondary" onClick={() => void handleShare()}>
+            Share seller
+          </button>
+          <button type="button" className="modalSecondary" onClick={reportVendor}>
+            Report user
+          </button>
+        </div>
         <div style={{ marginTop: 16 }}>
           <h3>Leave a review</h3>
           {!user ? (
@@ -179,23 +238,30 @@ export default function VendorProfilePage({ params }: { params: { slug: string }
           )}
         </div>
         <h3 style={{ marginTop: 16 }}>Listings</h3>
-        <ul className="modalList">
-          {vendor.listings.map((listing) => (
-            <li key={listing.id} className="modalListItem">
-              <div className="vendorListingRow">
-                <Link href={`/vendor/${vendor.slug}`} className="vendorListingAvatarLink" aria-label={`View ${vendor.storeName}`}>
-                  <Avatar name={displayName} imageId={profileImageId} size={42} className="vendorListingAvatar" />
-                </Link>
-                <div className="vendorListingCopy">
-                  <Link href={`/item/${listing.id}`} className="vendorListingTitle">{listing.title}</Link>
-                  <div className="modalThreadMeta">
-                    {listing.city}, {listing.area}
+        {vendor.listings.length === 0 ? (
+          <div className="uiStateCard" style={{ marginTop: 12 }}>
+            <h3 className="uiStateTitle">No active listings</h3>
+            <p className="uiStateText">This seller does not have any active listings right now.</p>
+          </div>
+        ) : (
+          <ul className="modalList">
+            {vendor.listings.map((listing) => (
+              <li key={listing.id} className="modalListItem">
+                <div className="vendorListingRow">
+                  <Link href={`/vendor/${vendor.slug}`} className="vendorListingAvatarLink" aria-label={`View ${vendor.storeName}`}>
+                    <Avatar name={displayName} imageUrl={profileImageUrl} size={42} className="vendorListingAvatar" />
+                  </Link>
+                  <div className="vendorListingCopy">
+                    <Link href={`/item/${listing.id}`} className="vendorListingTitle">{listing.title}</Link>
+                    <div className="modalThreadMeta">
+                      {listing.city}, {listing.area}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

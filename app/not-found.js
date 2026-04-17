@@ -47,7 +47,7 @@ export default function NotFound() {
           marginBottom:"25px",
           lineHeight:"1.6"
         }}>
-          The page you're looking for doesn't exist or may have moved.
+          The page you&apos;re looking for doesn&apos;t exist or may have moved.
           Maybe it went shopping in Addis and forgot to come back.
         </p>
 

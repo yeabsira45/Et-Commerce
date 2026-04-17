@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation";
 import { useAppContext } from "./AppContext";
 import { VendorPanel } from "./VendorPanel";
 import { AuthModal } from "./AuthModal";
-import { SavedModal } from "./SavedModal";
 import { NotificationsModal } from "./NotificationsModal";
 import { Avatar } from "./Avatar";
 
-function Icon({ kind }: { kind: "bookmark" | "chat" | "bell" | "diamond" | "user" }) {
+function Icon({ kind }: { kind: "bookmark" | "chat" | "bell" | "user" }) {
   const common = {
     width: 18,
     height: 18,
@@ -42,12 +41,6 @@ function Icon({ kind }: { kind: "bookmark" | "chat" | "bell" | "diamond" | "user
           <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
         </svg>
       );
-    case "diamond":
-      return (
-        <svg {...common} aria-hidden="true">
-          <path d="M12 22 2 9l4-7h12l4 7-10 13Z" stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />
-        </svg>
-      );
     default:
       return (
         <svg {...common} aria-hidden="true">
@@ -65,20 +58,20 @@ function TooltipIconButton({
   badgeCount,
   animateBadge,
   avatarName,
-  avatarId,
+  avatarUrl,
 }: {
   label: string;
-  kind: "bookmark" | "chat" | "bell" | "diamond" | "user";
+  kind: "bookmark" | "chat" | "bell" | "user";
   onClick: () => void;
   badgeCount?: number;
   animateBadge?: boolean;
   avatarName?: string;
-  avatarId?: string | null;
+  avatarUrl?: string | null;
 }) {
   return (
     <div className="headerTooltipWrap">
       <button className="iconBtn" aria-label={label} type="button" onClick={onClick}>
-        {kind === "user" && avatarName ? <Avatar name={avatarName} imageId={avatarId} size={28} className="headerAvatar" /> : <Icon kind={kind} />}
+        {kind === "user" && avatarName ? <Avatar name={avatarName} imageUrl={avatarUrl} size={28} className="headerAvatar" /> : <Icon kind={kind} />}
         {badgeCount && badgeCount > 0 ? <span className={`headerIconBadge ${animateBadge ? "isPopping" : ""}`}>{badgeCount > 99 ? "99+" : badgeCount}</span> : null}
       </button>
       <span className="headerTooltip">{label}</span>
@@ -90,7 +83,6 @@ export function GlobalHeader() {
   const [vendorOpen, setVendorOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [savedOpen, setSavedOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [afterAuthPath, setAfterAuthPath] = useState<string | null>(null);
   const [animateBadge, setAnimateBadge] = useState(false);
@@ -108,8 +100,9 @@ export function GlobalHeader() {
     <>
       <header className="topbar">
         <div className="container topbarInner">
-          <Link href="/" className="brand">
-            ET-Commerce
+          <Link href="/" className="brand" aria-label="ET-Commerce classifieds home">
+            <span className="brandTitle">ET-Commerce</span>
+            <span className="brandSub">Classifieds marketplace</span>
           </Link>
 
           <div className="topActions">
@@ -117,13 +110,7 @@ export function GlobalHeader() {
               label="Bookmarks"
               kind="bookmark"
               onClick={() => {
-                if (!user) {
-                  setAuthMode("login");
-                  setAfterAuthPath(null);
-                  setAuthOpen(true);
-                  return;
-                }
-                setSavedOpen(true);
+                router.push("/saved");
               }}
             />
             <TooltipIconButton
@@ -142,12 +129,11 @@ export function GlobalHeader() {
               }}
             />
             <TooltipIconButton label="Notifications" kind="bell" onClick={() => setNotificationsOpen(true)} />
-            <TooltipIconButton label="Premium" kind="diamond" onClick={() => undefined} />
             <TooltipIconButton
               label="Profile"
               kind="user"
               avatarName={user?.fullName || user?.username}
-              avatarId={user?.profileImageId || user?.vendor?.profileImageId}
+              avatarUrl={user?.vendor?.profileImageUrl}
               onClick={() => setVendorOpen(true)}
             />
 
@@ -203,7 +189,6 @@ export function GlobalHeader() {
           }
         }}
       />
-      <SavedModal open={savedOpen} onClose={() => setSavedOpen(false)} />
       <NotificationsModal open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </>
   );

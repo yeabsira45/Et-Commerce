@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clearDemoSessionCookie, clearSessionCookie, hashToken } from "@/lib/auth";
+import { clearSessionCookie, hashToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 
@@ -14,6 +14,5 @@ export async function POST() {
     }
   }
   clearSessionCookie();
-  clearDemoSessionCookie();
   return NextResponse.json({ ok: true });
 }

@@ -3,15 +3,16 @@
 import React, { useEffect, useState } from "react";
 import { useAppContext } from "@/components/AppContext";
 import { useToast } from "@/components/ToastProvider";
-import { saveProfileMeta } from "@/lib/localProfile";
 import { canDeleteAccount } from "@/lib/dashboardPermissions";
 import { dashboardToast } from "@/lib/dashboardToastCopy";
+import { validatePassword } from "@/lib/passwordRules";
 
 export function DashboardSettings() {
   const { user, logout, refreshUser } = useAppContext();
   const showToast = useToast();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -28,10 +29,23 @@ export function DashboardSettings() {
 
   async function handleSaveAccount(e: React.FormEvent) {
     e.preventDefault();
+    const wantsPasswordChange = Boolean(password.trim() || confirmPassword.trim() || currentPassword.trim());
+    if (wantsPasswordChange && !currentPassword.trim()) {
+      showToast("Current password is required to change your password.", "error");
+      return;
+    }
     if (password.trim() && password !== confirmPassword) {
       showToast(dashboardToast.passwordsMismatch, "error");
       return;
     }
+    if (password.trim()) {
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        showToast(passwordError, "error");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const res = await fetch("/api/vendors/me", {
@@ -52,21 +66,32 @@ export function DashboardSettings() {
         setSaving(false);
         return;
       }
-      saveProfileMeta({
-        userId: account.id,
-        email: email.trim().toLowerCase(),
-        fullName: fullName.trim(),
-        phone: account.vendor?.phone || "",
-        storeName: account.vendor?.storeName,
-        city: account.vendor?.city,
-      });
-      window.dispatchEvent(new Event("local-profile:changed"));
       await refreshUser();
       showToast(dashboardToast.accountSaved);
-      if (password.trim()) {
-        showToast(dashboardToast.passwordDemoNote);
+      if (wantsPasswordChange && password.trim()) {
+        const passwordRes = await fetch("/api/auth/password", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentPassword,
+            newPassword: password,
+            confirmPassword,
+          }),
+        });
+
+        if (!passwordRes.ok) {
+          const err = (await passwordRes.json().catch(() => ({}))) as { error?: string };
+          showToast(err.error || "Password update failed.", "error");
+          setSaving(false);
+          return;
+        }
+
+        showToast("Password changed successfully. Please sign in again.");
+        setCurrentPassword("");
         setPassword("");
         setConfirmPassword("");
+        await logout();
+        return;
       }
     } finally {
       setSaving(false);
@@ -78,10 +103,6 @@ export function DashboardSettings() {
       showToast(dashboardToast.accountDeleteBlocked, "error");
       return;
     }
-    if (account.id === "demo-user") {
-      showToast(dashboardToast.accountDemoDeleteBlocked, "error");
-      return;
-    }
     if (!window.confirm("Delete your account permanently? This cannot be undone.")) return;
     logout();
     showToast(dashboardToast.accountDeletedMock);
@@ -90,7 +111,7 @@ export function DashboardSettings() {
   return (
     <div>
       <h2>Settings</h2>
-      <p className="modalSub">Update your sign-in details. Password changes are demo-only and are not stored.</p>
+      <p className="modalSub">Update your sign-in details.</p>
       <form className="sellForm" onSubmit={handleSaveAccount} style={{ marginTop: 16, maxWidth: 420 }}>
         <label className="sellField">
           <span className="sellFieldLabel">Display name</span>
@@ -101,7 +122,18 @@ export function DashboardSettings() {
           <input type="email" className="sellInput" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
         <label className="sellField">
-          <span className="sellFieldLabel">New password (demo only — not persisted)</span>
+          <span className="sellFieldLabel">Current password</span>
+          <input
+            type="password"
+            className="sellInput"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Required for password change"
+            autoComplete="current-password"
+          />
+        </label>
+        <label className="sellField">
+          <span className="sellFieldLabel">New password</span>
           <input
             type="password"
             className="sellInput"

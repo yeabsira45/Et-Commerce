@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { uploadApiPath } from "@/lib/uploadSecurity";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -12,7 +13,14 @@ export async function GET() {
       username: user.username,
       email: user.email,
       role: user.role,
-      vendor: user.vendor,
+      vendor: user.vendor
+        ? {
+            ...user.vendor,
+            profileImageUrl: user.vendor.profileImageUploadId
+              ? uploadApiPath(user.vendor.profileImageUploadId)
+              : null,
+          }
+        : null,
     },
   });
 }

@@ -15,21 +15,21 @@ export const dashboardToast = {
   listingDeleteFailed: "Could not delete listing.",
   listingUpdateFailed: "Could not update listing.",
   listingNoPermission: "You cannot modify this listing.",
-  listingImageDemo: "Image updated (demo only).",
+  listingImageDemo: "Image updated.",
   imageReadFailed: "Could not read image file.",
 
   // Settings
   accountSaved: "Successfully saved account details.",
   accountSaveFailed: "Could not save account details.",
-  passwordDemoNote: "Password change noted (demo only — not saved to the server).",
+  passwordDemoNote: "Password updates are not available from this screen yet.",
   passwordsMismatch: "Passwords do not match.",
   accountDeleteBlocked: "You cannot delete this account.",
-  accountDemoDeleteBlocked: "Cannot delete demo admin account.",
-  accountDeletedMock: "Successfully removed account (mock). You have been signed out.",
+  accountDemoDeleteBlocked: "Cannot delete this protected account.",
+  accountDeletedMock: "Successfully removed account. You have been signed out.",
 
   // Admin
   adminLoadFailed: "Could not load admin data.",
-  adminBanBlocked: "Cannot ban the demo admin account.",
+  adminBanBlocked: "Cannot ban this protected account.",
   userBanned: "Successfully banned user.",
   userUnbanned: "Successfully unbanned user.",
   adminBanFailed: "Could not update ban status.",

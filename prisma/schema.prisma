@@ -47,6 +47,9 @@ model User {
 
   vendor       Vendor?
   sessions     Session[]
+  passwordResetTokens PasswordResetToken[]
+  uploads      Upload[]
+  savedListings SavedListing[]
   listings     Listing[]      @relation("ListingOwner")
   conversationsAsRequester Conversation[] @relation("RequesterConversations")
   conversationsAsOwner     Conversation[] @relation("OwnerConversations")
@@ -58,6 +61,19 @@ model User {
   reviewsGiven Review[] @relation("ReviewAuthor")
 }
 
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Vendor {
   id           String   @id @default(cuid())
   userId       String   @unique
@@ -67,10 +83,13 @@ model Vendor {
   area         String?
   street       String?
   phone        String?
+  profileImageUploadId String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   user         User     @relation(fields: [userId], references: [id])
+  profileImageUpload Upload? @relation("VendorProfileImage", fields: [profileImageUploadId], references: [id])
+  uploads      Upload[]
   listings     Listing[]
   reviews      Review[]
 }
@@ -96,16 +115,58 @@ model Listing {
   owner       User              @relation("ListingOwner", fields: [ownerId], references: [id])
   images      Image[]
   conversations Conversation[]
+  savedByUsers SavedListing[]
+
+  @@index([status, createdAt])
+  @@index([vendorId, createdAt])
+  @@index([category, subcategory])
+}
+
+model SavedListing {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([userId, createdAt])
 }
 
 model Image {
   id        String   @id @default(cuid())
   listingId String
-  url       String
+  uploadId  String
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
   listing   Listing  @relation(fields: [listingId], references: [id])
+  upload    Upload   @relation(fields: [uploadId], references: [id])
+
+  @@index([listingId, sortOrder])
+}
+
+model Upload {
+  id               String   @id @default(cuid())
+  ownerUserId      String
+  ownerVendorId    String?
+  path             String
+  mimeType         String
+  size             Int
+  linkedEntityType String?
+  linkedEntityId   String?
+  createdAt        DateTime @default(now())
+
+  ownerUser        User     @relation(fields: [ownerUserId], references: [id])
+  ownerVendor      Vendor?  @relation(fields: [ownerVendorId], references: [id])
+  listingImages    Image[]
+  vendorProfileOf  Vendor[] @relation("VendorProfileImage")
+
+  @@index([ownerUserId])
+  @@index([ownerVendorId])
+  @@index([linkedEntityType, linkedEntityId])
 }
 
 model Conversation {
@@ -123,6 +184,8 @@ model Conversation {
   notifications Notification[] @relation("ConversationNotifications")
 
   @@unique([listingId, requesterId, ownerId])
+  @@index([requesterId, updatedAt])
+  @@index([ownerId, updatedAt])
 }
 
 model Message {
@@ -135,6 +198,9 @@ model Message {
 
   conversation   Conversation  @relation(fields: [conversationId], references: [id])
   sender         User          @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, readAt])
 }
 
 model Notification {
@@ -152,6 +218,8 @@ model Notification {
   sender    User              @relation("NotificationSender", fields: [senderId], references: [id])
   receiver  User              @relation("NotificationReceiver", fields: [receiverId], references: [id])
   conversation Conversation?  @relation("ConversationNotifications", fields: [conversationId], references: [id])
+
+  @@index([receiverId, readAt, type, createdAt])
 }
 
 model Report {
@@ -180,6 +248,7 @@ model Review {
   reviewer   User     @relation("ReviewAuthor", fields: [reviewerId], references: [id])
 
   @@unique([vendorId, reviewerId])
+  @@index([vendorId, createdAt])
 }
 
 model Session {
@@ -190,4 +259,6 @@ model Session {
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
 }

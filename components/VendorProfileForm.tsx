@@ -5,10 +5,9 @@ import { useAppContext } from "@/components/AppContext";
 import { SearchableSelect } from "@/components/form/SearchableSelect";
 import { ETHIOPIAN_CITIES } from "@/lib/cities";
 import { Avatar } from "@/components/Avatar";
-import { getProfileMeta, saveProfileMeta } from "@/lib/localProfile";
-import { deleteImage, saveImage } from "@/lib/indexedDB";
 import { useToast } from "@/components/ToastProvider";
 import { dashboardToast } from "@/lib/dashboardToastCopy";
+import { MAX_IMAGE_UPLOAD_MB, validateImageFile } from "@/lib/imageUploadValidation";
 
 function slugify(value: string) {
   return value
@@ -35,7 +34,8 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
   const [subcity, setSubcity] = useState("");
   const [area, setArea] = useState("");
   const [phone, setPhone] = useState("");
-  const [profileImageId, setProfileImageId] = useState("");
+  const [profileImageUrl, setProfileImageUrl] = useState("");
+  const [profileImageUploadId, setProfileImageUploadId] = useState("");
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profilePreviewUrl, setProfilePreviewUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -58,8 +58,8 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
       if (nextUser) {
         setFullName(nextUser.username || "");
         setEmail(nextUser.email || "");
-        const meta = getProfileMeta(nextUser.id, nextUser.email);
-        setProfileImageId(meta?.profileImageId || "");
+        setProfileImageUrl(nextUser.vendor?.profileImageUrl || "");
+        setProfileImageUploadId(nextUser.vendor?.profileImageUploadId || "");
       }
       if (vendor) {
         setStoreName(vendor.storeName || "");
@@ -123,6 +123,22 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
     if (!canSubmit) return;
     setSaving(true);
     setError(null);
+    let nextProfileImageUploadId = profileImageUploadId;
+    if (profileImageFile) {
+      const form = new FormData();
+      form.append("files", profileImageFile);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      if (!uploadRes.ok) {
+        setSaving(false);
+        setError("Image upload failed. Please try again.");
+        showToast("Image upload failed. Please try again.", "error");
+        return;
+      }
+      const uploadData = (await uploadRes.json().catch(() => ({}))) as { uploads?: Array<{ id: string; url: string }> };
+      nextProfileImageUploadId = uploadData.uploads?.[0]?.id || "";
+      setProfileImageUrl(uploadData.uploads?.[0]?.url || "");
+    }
+
     const res = await fetch("/api/vendors/me", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -134,6 +150,7 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
         area: subcity,
         street: area.trim() || undefined,
         phone,
+        profileImageUploadId: nextProfileImageUploadId || null,
       }),
     });
     if (!res.ok) {
@@ -143,24 +160,9 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
       return;
     }
     const hadAvatarQueued = Boolean(profileImageFile);
-    try {
-      saveProfileMeta({
-        userId: currentUser.id,
-        email: email.trim().toLowerCase(),
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-        storeName: effectiveStoreName,
-        city,
-        profileImageId: profileImageFile || profileImageId ? currentUser.id : undefined,
-      });
-
-      if (profileImageFile) {
-        await saveImage(currentUser.id, profileImageFile);
-        setProfileImageId(currentUser.id);
-        setProfileImageFile(null);
-      }
-    } catch {
-      // IndexedDB failure should not block the rest of the profile update
+    if (profileImageFile) {
+      setProfileImageUploadId(nextProfileImageUploadId);
+      setProfileImageFile(null);
     }
     setSaving(false);
     showToast(hadAvatarQueued ? dashboardToast.profileSavedWithImage : dashboardToast.profileSaved);
@@ -170,20 +172,20 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
   async function handleRemoveAvatar() {
     setProfileImageFile(null);
     setProfilePreviewUrl("");
-    setProfileImageId("");
-    try {
-      await deleteImage(currentUser.id);
-    } catch {
-      // initials fallback keeps the UI safe even if IndexedDB removal fails
-    }
-    saveProfileMeta({
-      userId: currentUser.id,
-      email: email.trim().toLowerCase(),
-      fullName: fullName.trim(),
-      phone: phone.trim(),
-      storeName: effectiveStoreName,
-      city,
-      profileImageId: undefined,
+    setProfileImageUrl("");
+    await fetch("/api/vendors/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName,
+        email,
+        storeName,
+        city,
+        area: subcity,
+        street: area.trim() || undefined,
+        phone,
+        removeProfileImage: true,
+      }),
     });
     showToast(dashboardToast.profileImageRemoved);
     onSaved?.();
@@ -202,18 +204,18 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
               <span className="sellFieldLabel">Profile Preview</span>
               <div className="vendorAvatarPreviewRow">
                 <div className="avatarBadgeWrap">
-                  <Avatar name={fullName || storeName || "Vendor"} imageUrl={profilePreviewUrl || undefined} imageId={profileImageId || undefined} size={72} />
+                  <Avatar name={fullName || storeName || "Vendor"} imageUrl={profilePreviewUrl || profileImageUrl || undefined} size={72} />
                   <span className="avatarEditBadge" aria-hidden="true">
                     Edit
                   </span>
                 </div>
                 <div>
                   <div className="vendorAvatarPreviewName">{storeName.trim() || `${fullName.trim() || "Vendor"}'s Store`}</div>
-                  <p className="sellFieldHint">Upload a vendor photo to use everywhere across listings, chat, and your public vendor page.</p>
+                  <p className="sellFieldHint">Upload a vendor photo to use everywhere across listings, chat, and your public vendor page. Image files only, max {MAX_IMAGE_UPLOAD_MB}MB.</p>
                 </div>
                 <div className="modalAvatarActions">
                   <label className="modalUploadBtn">
-                    {profileImageId || profileImageFile ? "Change Image" : "Upload Image"}
+                    {profileImageUrl || profileImageFile ? "Change Image" : "Upload Image"}
                     <input
                       type="file"
                       accept="image/*"
@@ -221,11 +223,19 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
                       onChange={(event) => {
                         const file = event.target.files?.[0];
                         if (!file) return;
+                        const validationError = validateImageFile(file);
+                        if (validationError) {
+                          setError(validationError);
+                          showToast(validationError, "error");
+                          event.target.value = "";
+                          return;
+                        }
                         setProfileImageFile(file);
+                        setError(null);
                       }}
                     />
                   </label>
-                  {profileImageId || profileImageFile ? (
+                  {profileImageUrl || profileImageFile ? (
                     <button type="button" className="modalSecondary modalAvatarRemoveBtn" onClick={handleRemoveAvatar}>
                       Remove
                     </button>

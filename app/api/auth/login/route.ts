@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createSessionToken, hashToken, setDemoSessionCookie, setSessionCookie, verifyPassword } from "@/lib/auth";
-import { demoUser } from "@/lib/demo";
+import { createSessionToken, hashToken, setSessionCookie, verifyPassword } from "@/lib/auth";
+import { uploadApiPath } from "@/lib/uploadSecurity";
 
 export async function POST(req: Request) {
   try {
     const { identifier, password } = await req.json();
     if (!identifier || !password) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-    }
-
-    // Super Admin (dev): username exactly `demo`, password exactly `password` — not an email login.
-    const idNorm = String(identifier || "").trim().toLowerCase();
-    if (idNorm === "demo" && password === "password") {
-      setDemoSessionCookie();
-      return NextResponse.json({ user: demoUser });
     }
 
     let user = await prisma.user.findFirst({
@@ -54,7 +47,14 @@ export async function POST(req: Request) {
         username: user.username,
         email: user.email,
         role: user.role,
-        vendor: user.vendor,
+        vendor: user.vendor
+          ? {
+              ...user.vendor,
+              profileImageUrl: user.vendor.profileImageUploadId
+                ? uploadApiPath(user.vendor.profileImageUploadId)
+                : null,
+            }
+          : null,
       },
     });
   } catch {

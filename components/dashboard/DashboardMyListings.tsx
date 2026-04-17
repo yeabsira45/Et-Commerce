@@ -7,8 +7,8 @@ import { useToast } from "@/components/ToastProvider";
 import { formatEtbPrice, normalizePriceInput } from "@/lib/format";
 import { Avatar } from "@/components/Avatar";
 import { canModifyListing } from "@/lib/dashboardPermissions";
-import { readFileAsDataUrl } from "@/lib/fileDataUrl";
 import { dashboardToast } from "@/lib/dashboardToastCopy";
+import { validateImageFile } from "@/lib/imageUploadValidation";
 
 export type DashListing = {
   id: string;
@@ -61,13 +61,26 @@ export function DashboardMyListings() {
   }, [editingId]);
 
   async function applyImageFile(file: File) {
-    try {
-      const url = await readFileAsDataUrl(file);
-      setEditImageUrl(url);
-      showToast(dashboardToast.listingImageDemo);
-    } catch {
-      showToast(dashboardToast.imageReadFailed, "error");
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      showToast(validationError, "error");
+      return;
     }
+    const form = new FormData();
+    form.append("files", file);
+    const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+    if (!uploadRes.ok) {
+      showToast(dashboardToast.imageReadFailed, "error");
+      return;
+    }
+    const uploadPayload = (await uploadRes.json().catch(() => ({}))) as { urls?: string[] };
+    const nextUrl = uploadPayload.urls?.[0];
+    if (!nextUrl) {
+      showToast(dashboardToast.imageReadFailed, "error");
+      return;
+    }
+    setEditImageUrl(nextUrl);
+    showToast("Image uploaded.");
   }
 
   if (!user) return null;
@@ -75,7 +88,7 @@ export function DashboardMyListings() {
   const u = user;
   const vendorHref = u.vendor?.slug ? `/vendor/${u.vendor.slug}` : "/vendor/register";
   const vendorName = u.vendor?.storeName || u.fullName || u.username;
-  const vendorImageId = u.profileImageId || u.vendor?.profileImageId;
+  const vendorImageUrl = u.vendor?.profileImageUrl;
 
   async function removeListing(id: string) {
     const ownerId = listings.find((l) => l.id === id)?.ownerId || u.id;
@@ -123,7 +136,7 @@ export function DashboardMyListings() {
     <div>
       <h2>My Listings</h2>
       <Link href={vendorHref} className="dashboardVendorBlock">
-        <Avatar name={vendorName} imageId={vendorImageId} size={40} className="dashboardVendorAvatar" />
+        <Avatar name={vendorName} imageUrl={vendorImageUrl} size={40} className="dashboardVendorAvatar" />
         <div>
           <div className="modalThreadTitle">{vendorName}</div>
           <div className="modalThreadMeta">Your public store profile</div>
@@ -183,7 +196,7 @@ export function DashboardMyListings() {
                         if (file?.type.startsWith("image/")) void applyImageFile(file);
                       }}
                     >
-                      <span className="modalThreadMeta">Drop an image here (demo — stored in memory until server restart)</span>
+                      <span className="modalThreadMeta">Drop an image here or choose one from your device</span>
                       <label className="modalUploadBtn" style={{ marginTop: 8 }}>
                         Choose image file
                         <input

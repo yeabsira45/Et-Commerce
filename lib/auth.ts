@@ -2,10 +2,8 @@ import { cookies } from "next/headers";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { demoUser } from "@/lib/demo";
 
 const SESSION_COOKIE = "etcom_session";
-const DEMO_COOKIE = "etcom_demo";
 const SESSION_DAYS = 14;
 
 export function hashToken(token: string) {
@@ -35,17 +33,6 @@ export function setSessionCookie(token: string) {
   });
 }
 
-export function setDemoSessionCookie() {
-  const expires = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
-  cookies().set(DEMO_COOKIE, "1", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    expires,
-  });
-}
-
 export function clearSessionCookie() {
   cookies().set(SESSION_COOKIE, "", {
     httpOnly: true,
@@ -56,21 +43,7 @@ export function clearSessionCookie() {
   });
 }
 
-export function clearDemoSessionCookie() {
-  cookies().set(DEMO_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    expires: new Date(0),
-  });
-}
-
 export async function getSessionUser() {
-  const demo = cookies().get(DEMO_COOKIE)?.value;
-  if (demo) {
-    return demoUser;
-  }
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const tokenHash = hashToken(token);

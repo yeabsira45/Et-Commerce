@@ -1,22 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
-import { demoReviews, demoVendor, getDemoReviewSummary } from "@/lib/demo";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const vendorId = searchParams.get("vendorId");
   if (!vendorId) {
     return NextResponse.json({ error: "Missing vendorId" }, { status: 400 });
-  }
-
-  if (vendorId === demoVendor.id) {
-    const summary = getDemoReviewSummary();
-    return NextResponse.json({
-      reviews: demoReviews,
-      average: summary.average,
-      count: summary.count,
-    });
   }
 
   try {
@@ -26,15 +16,15 @@ export async function GET(req: Request) {
       take: 8,
       include: { reviewer: { select: { username: true } } },
     });
-    const count = await prisma.review.count({ where: { vendorId } });
-    const avg = await prisma.review.aggregate({
+    const stats = await prisma.review.aggregate({
       where: { vendorId },
       _avg: { rating: true },
+      _count: { _all: true },
     });
     return NextResponse.json({
       reviews,
-      average: avg._avg.rating ? Math.round(avg._avg.rating * 10) / 10 : 0,
-      count,
+      average: stats._avg.rating ? Math.round(stats._avg.rating * 10) / 10 : 0,
+      count: stats._count._all,
     });
   } catch {
     return NextResponse.json({ reviews: [], average: 0, count: 0 });
@@ -53,20 +43,6 @@ export async function POST(req: Request) {
   }
   if (numericRating < 1 || numericRating > 5) {
     return NextResponse.json({ error: "Rating must be between 1 and 5" }, { status: 400 });
-  }
-
-  if (vendorId === demoVendor.id) {
-    return NextResponse.json({
-      review: {
-        id: `demo-review-${Date.now()}`,
-        vendorId,
-        reviewerId: user.id,
-        rating: numericRating,
-        comment: comment || null,
-        createdAt: new Date().toISOString(),
-        reviewer: { username: user.username },
-      },
-    });
   }
 
   try {

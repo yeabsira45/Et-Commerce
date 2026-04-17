@@ -8,6 +8,9 @@ import { useAppContext } from "@/components/AppContext";
 import { SearchableSelect, type CategorySearchInsight } from "@/components/form/SearchableSelect";
 import { ETHIOPIAN_CITIES } from "@/lib/cities";
 import { normalizeSellDraftForStorage } from "@/lib/sellDraftStorage";
+import { MAX_LISTING_IMAGE_FILE_BYTES, MAX_LISTING_IMAGES, sanitizeListingImageUrls } from "@/lib/listingImageRules";
+import { useToast } from "@/components/ToastProvider";
+import { MAX_IMAGE_UPLOAD_MB, validateImageFile } from "@/lib/imageUploadValidation";
 import {
   detectAllListingsFromTitle,
   detectListingFromTitle,
@@ -17,6 +20,7 @@ import {
 
 export default function SellPage() {
   const { user } = useAppContext();
+  const showToast = useToast();
   const [title, setTitle] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryTouched, setCategoryTouched] = useState(false);
@@ -54,7 +58,13 @@ export default function SellPage() {
       }
       if (draft.city) setSelectedCity(draft.city);
       if (draft.subcity || draft.area) setSelectedSubcity(draft.subcity || draft.area || null);
-      if (Array.isArray(draft.images)) setPhotoUrls(draft.images);
+      if (Array.isArray(draft.images)) {
+        const { urls, warnings } = sanitizeListingImageUrls(draft.images);
+        if (warnings.length) {
+          warnings.forEach((msg) => showToast(msg, "warning"));
+        }
+        setPhotoUrls(urls);
+      }
       if (typeof (draft as { subcategory?: string }).subcategory === "string") {
         setHierarchySub((draft as { subcategory: string }).subcategory);
       }
@@ -64,18 +74,55 @@ export default function SellPage() {
     } catch {
       // ignore malformed local draft and let the user start clean
     }
-  }, []);
+  }, [showToast]);
 
   function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const list = e.target.files;
     if (!list) return;
-    const next: File[] = [];
+    const picked: File[] = [];
     for (let i = 0; i < list.length; i += 1) {
       const file = list.item(i);
-      if (file) next.push(file);
+      if (file) picked.push(file);
     }
-    setPhotos(next);
-    uploadFiles(next);
+
+    const allowed: File[] = [];
+    let invalidType = false;
+    let oversize = false;
+
+    for (const file of picked) {
+      if (allowed.length >= MAX_LISTING_IMAGES) {
+        break;
+      }
+      const validationError = validateImageFile(file, { maxBytes: MAX_LISTING_IMAGE_FILE_BYTES });
+      if (validationError) {
+        if (String(file.type || "").toLowerCase().startsWith("image/")) {
+          oversize = true;
+        } else {
+          invalidType = true;
+        }
+        continue;
+      }
+      allowed.push(file);
+    }
+
+    if (picked.length > MAX_LISTING_IMAGES) {
+      showToast(`You can add up to ${MAX_LISTING_IMAGES} photos per listing.`, "warning");
+    }
+    if (oversize) {
+      showToast(`Each photo must be ${MAX_IMAGE_UPLOAD_MB}MB or smaller.`, "warning");
+    }
+    if (invalidType) {
+      showToast("Only image files are allowed (JPG, PNG, WebP, etc.).", "warning");
+    }
+
+    if (!allowed.length) {
+      e.target.value = "";
+      return;
+    }
+
+    setPhotos(allowed);
+    uploadFiles(allowed);
+    e.target.value = "";
   }
 
   async function uploadFiles(files: File[]) {
@@ -86,7 +133,11 @@ export default function SellPage() {
     const res = await fetch("/api/upload", { method: "POST", body: form });
     if (res.ok) {
       const data = await res.json();
-      setPhotoUrls(data.urls || []);
+      const uploads = Array.isArray(data.uploads) ? data.uploads : [];
+      setPhotoUrls(uploads.map((item: { id?: string; url?: string }) => item.id || item.url).filter(Boolean));
+    } else {
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      showToast(payload.error || "Image upload failed. Please try again.", "error");
     }
     setUploading(false);
   }
@@ -123,7 +174,7 @@ export default function SellPage() {
     if (!still) setLockedDetection(null);
   }, [title, lockedDetection]);
 
-  const titleValid = title.trim().length >= 5;
+  const titleValid = title.trim().length >= 3;
   const canProceed = Boolean(titleValid && selectedCategory && selectedCity && selectedSubcity);
   const titleNorm = title.trim().toLowerCase();
   const titleDetection = title.trim().length >= 3 ? detectListingFromTitle(title) : null;
@@ -219,6 +270,12 @@ export default function SellPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!canProceed || !selectedCategory) return;
+                const { urls: cleanImageUrls, warnings: imageWarnings } = sanitizeListingImageUrls(photoUrls);
+                imageWarnings.forEach((msg) => showToast(msg, "warning"));
+                if (!cleanImageUrls.length) {
+                  showToast("Add at least one valid photo before continuing.", "warning");
+                  return;
+                }
                 const det =
                   lockedDetection && lockedDetection.category === selectedCategory ? lockedDetection : null;
                 const payload = normalizeSellDraftForStorage({
@@ -227,7 +284,7 @@ export default function SellPage() {
                   city: selectedCity || "",
                   area: selectedSubcity || "",
                   subcity: selectedSubcity || undefined,
-                  images: photoUrls,
+                  images: cleanImageUrls,
                   subcategory: (det?.subcategory ?? hierarchySub) || undefined,
                   constructionItem: (det?.constructionItem ?? hierarchyItem) || undefined,
                   detectedHints: det
@@ -245,7 +302,7 @@ export default function SellPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg"
+                accept="image/*"
                 multiple
                 className="sellFileInput"
                 onChange={handleFilesChange}
@@ -275,7 +332,7 @@ export default function SellPage() {
                   </label>
                   <span className="sellCounter">{title.length} / 70</span>
                 </div>
-                {!titleValid && title.trim().length > 0 ? <p className="sellInlineError">Title must be at least 5 characters.</p> : null}
+                {!titleValid && title.trim().length > 0 ? <p className="sellInlineError">Title must be at least 3 characters.</p> : null}
 
                 {showSingleSuggestion && titleDetection ? (
                   <div className="sellDetectPanel" role="region" aria-label="Suggested listing path">
@@ -479,7 +536,7 @@ export default function SellPage() {
                 ) : null}
 
                 {uploading ? <p className="sellFormats">Uploading photos...</p> : null}
-                <p className="sellFormats">Supported formats are *.jpg and *.png</p>
+                <p className="sellFormats">Supported formats: image files only (JPG, PNG, WebP, etc.), max {MAX_IMAGE_UPLOAD_MB}MB each.</p>
               </div>
 
               <button type="submit" className="sellNextBtn" disabled={!canProceed}>

@@ -3,6 +3,7 @@ import {
   CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY,
 } from "@/lib/categories";
 import { CONSTRUCTION_LEAVES_BY_SUB } from "@/lib/constructionListingLeaves";
+import { COMPUTING_MODEL_SUGGESTIONS_FOR_DETECTION } from "@/lib/computingModelsForSellDetection";
 import { SMARTPHONE_MODEL_SUGGESTIONS_FOR_DETECTION } from "@/lib/smartphoneModelsForSellDetection";
 import { VEHICLE_MODEL_SUGGESTIONS_FOR_DETECTION } from "@/lib/vehicleModelsForSellDetection";
 
@@ -30,6 +31,14 @@ type Rule = {
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildModelRegex(model: string): RegExp {
+  const normalized = model.trim();
+  const withoutSeries = normalized.replace(/\s+Series$/i, "");
+  const escaped = escapeRegex(withoutSeries || normalized).replace(/\s+/g, "\\s+");
+  const seriesSuffix = /\s+Series$/i.test(normalized) ? "(?:\\s+series)?" : "";
+  return new RegExp(`\\b${escaped}${seriesSuffix}\\b`, "i");
 }
 
 function withPathLabels(result: RuleResultCore): Omit<SellTitleDetection, "label"> {
@@ -339,8 +348,7 @@ function buildVehicleModelRules(): Rule[] {
   for (const [brand, models] of Object.entries(VEHICLE_MODEL_SUGGESTIONS_FOR_DETECTION)) {
     const sorted = [...models].sort((a, b) => b.length - a.length);
     for (const model of sorted) {
-      const pattern = escapeRegex(model).replace(/\s+/g, "\\s+");
-      const re = new RegExp(`\\b${pattern}\\b`, "i");
+      const re = buildModelRegex(model);
       out.push({
         label: `${brand} ${model}`,
         test: (t) => re.test(t),
@@ -373,6 +381,32 @@ function buildSmartphoneModelRules(): Rule[] {
           brand,
           model,
           pathLabels: ["Electronics", "Mobile Phones", brand, model],
+        },
+      });
+    }
+  }
+  return out;
+}
+
+function buildComputingModelRules(): Rule[] {
+  const out: Rule[] = [];
+  for (const [brand, models] of Object.entries(COMPUTING_MODEL_SUGGESTIONS_FOR_DETECTION)) {
+    const brandRe = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
+    const sorted = [...models].sort((a, b) => b.length - a.length);
+    for (const model of sorted) {
+      const re = buildModelRegex(model);
+      const subcategory = /(desktop|optiplex|ideacentre|thinkcentre|imac|mac mini|mac studio|tower|aurora)/i.test(model)
+        ? "Desktop Computers"
+        : "Laptops";
+      out.push({
+        label: `${brand} ${model}`,
+        test: (t) => brandRe.test(t) && re.test(t),
+        result: {
+          category: "Computing & Electronics",
+          subcategory,
+          brand,
+          model,
+          pathLabels: ["Computing & Electronics", subcategory, brand, model],
         },
       });
     }
@@ -441,6 +475,9 @@ function buildSubcategoryAliasRules(): Rule[] {
     RE("Computing & Electronics", "Desktop Computers", "Computing: desktop PC", (t) =>
       /\b(desktop\s*pc|desktop\s*computer|gaming\s*pc|workstation)\b/i.test(t),
     ),
+    RE("Computing & Electronics", "Computer Accessories", "Computing: monitor / display", (t) =>
+      /\b(monitor|display|lcd\s*monitor|led\s*monitor|ultrawide)\b/i.test(t) && !/\b(laptop|notebook|tv|television|phone)\b/i.test(t),
+    ),
     RE("TV & Audio Systems", "Televisions", "TV: television", (t) =>
       /\b(tv|television|smart\s*tv|oled|qled|4k\s*tv)\b/i.test(t) && !/\b(tv\s*stand|mount)\b/i.test(t),
     ),
@@ -449,6 +486,22 @@ function buildSubcategoryAliasRules(): Rule[] {
     ),
     RE("Home, Furniture & Appliances", "Home Appliances", "Home: washer / AC / vacuum", (t) =>
       /\b(washing\s*machine|washer|dryer|vacuum|air\s*conditioner|a\/c|ac\s*unit|water\s*heater|geyser)\b/i.test(t),
+    ),
+    RE("Home, Furniture & Appliances", "Bedroom Furniture", "Home: bedroom furniture", (t) =>
+      /\b(mattress|wardrobe|dresser|nightstand|headboard|bed\s*frame|closet|bunk\s*bed)\b/i.test(t),
+    ),
+    RE("Home, Furniture & Appliances", "Office Furniture", "Home: office furniture", (t) =>
+      /\b(office\s*chair|ergonomic\s*chair|filing\s*cabinet|standing\s*desk)\b/i.test(t) ||
+        (/\bdesk\b/i.test(t) && /\b(office|study|work\s*from\s*home|wfh)\b/i.test(t)),
+    ),
+    RE("Home, Furniture & Appliances", "Living Room Furniture", "Home: living room furniture", (t) =>
+      /\b(sofa|couch|sectional|loveseat|tv\s*stand|coffee\s*table|side\s*table|dining\s*table|bookshelf|rug|carpet|ottoman)\b/i.test(t),
+    ),
+    RE("Home, Furniture & Appliances", "Home Decor", "Home: decor / lighting", (t) =>
+      /\b(curtain|curtains|wall\s*art|mirror|chandelier|pendant\s*light|vase|decorative)\b/i.test(t),
+    ),
+    RE("Home, Furniture & Appliances", "Garden Supplies", "Home: garden / outdoor", (t) =>
+      /\b(lawn\s*mower|hose|watering\s*can|garden\s*chair|patio|greenhouse|plant\s*pots?)\b/i.test(t),
     ),
     RE("Clothing & Fashion", "Shoes & Footwear", "Fashion: shoes", (t) =>
       /\b(sneakers?|boots?|sandals?|heels?|loafers?|trainers?|footwear|nike\s*air|adidas)\b/i.test(t) &&
@@ -564,6 +617,7 @@ const RULES: Rule[] = [
   ...buildConstructionLeafRules(),
   ...buildVehicleModelRules(),
   ...buildSmartphoneModelRules(),
+  ...buildComputingModelRules(),
   ...buildSubcategoryAliasRules(),
   ...buildSubcategoryPhraseRules(),
 ];

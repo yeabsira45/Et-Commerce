@@ -184,3 +184,77 @@
   border-color: var(--brand);
   background: rgba(17, 182, 83, 0.06);
 }
+
+@media (max-width: 900px) {
+  .dashboardShell {
+    padding: 16px 0 32px;
+  }
+
+  .dashboardPanel {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .dashboardTab {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .adminToolbarSelect {
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboardTabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dashboardTab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .adminUserRow,
+  .adminListingRow {
+    gap: 10px;
+    padding: 10px 0;
+  }
+
+  .adminRowActions {
+    width: 100%;
+  }
+
+  .adminRowActions .modalPrimary,
+  .adminRowActions .modalSecondary {
+    flex: 1 1 100%;
+  }
+
+  .adminToolbar {
+    gap: 8px;
+  }
+
+  .adminToolbar .modalInput,
+  .adminToolbarSelect {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .adminFilterBadge {
+    width: 100%;
+    text-align: center;
+  }
+
+  .dashboardListingRow {
+    align-items: flex-start;
+  }
+
+  .dashboardListingCopy {
+    width: 100%;
+  }
+}

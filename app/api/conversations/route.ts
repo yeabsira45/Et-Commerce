@@ -21,22 +21,27 @@ export async function GET() {
     },
   });
 
-  const withUnread = await Promise.all(
-    conversations.map(async (conversation) => {
-      const unreadCount = await prisma.message.count({
-        where: {
-          conversationId: conversation.id,
-          senderId: { not: user.id },
-          readAt: null,
-        },
-      });
+  const conversationIds = conversations.map((conversation) => conversation.id);
+  const unreadRows =
+    conversationIds.length > 0
+      ? await prisma.message.groupBy({
+          by: ["conversationId"],
+          where: {
+            conversationId: { in: conversationIds },
+            senderId: { not: user.id },
+            readAt: null,
+          },
+          _count: { _all: true },
+        })
+      : [];
 
-      return {
-        ...conversation,
-        unreadCount,
-      };
-    })
+  const unreadByConversation = new Map(
+    unreadRows.map((row) => [row.conversationId, row._count._all])
   );
+  const withUnread = conversations.map((conversation) => ({
+    ...conversation,
+    unreadCount: unreadByConversation.get(conversation.id) || 0,
+  }));
 
   return NextResponse.json({ conversations: withUnread });
 }

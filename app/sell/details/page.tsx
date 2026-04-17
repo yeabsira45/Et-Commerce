@@ -1,16 +1,41 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useToast } from "@/components/ToastProvider";
+import { sanitizeListingImageUrls } from "@/lib/listingImageRules";
+import { normalizeSellDraftForStorage, type StorableSellDraft } from "@/lib/sellDraftStorage";
+import {
+  clearListingUndoStack,
+  discardTopListingUndoFrame,
+  finalizeListingDetailsForSubmit,
+  logListingAudit,
+  mergeDetectionRespectingUserEditedKeys,
+  parseUndoDraftJson,
+  peekListingUndoFrame,
+  popListingUndoFrame,
+  pushListingUndoFrame,
+  runAtomicListingFormReset,
+  runListingDetectionPrefill,
+  validateListingDetailsForPublish,
+  type ListingUndoReason,
+} from "@/lib/listings/listingEngine";
+import type { ListingDetectionModelDeps } from "@/lib/listings/listingDetectionPrefill";
+import { normalizeBrandName } from "@/lib/listings/brandNormalize";
+import { parseStorageString } from "@/lib/listings/storageFormat";
+import { brandShowsBatteryHealthForMobile } from "@/lib/listings/electronicsBatteryPolicy";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAppContext } from "@/components/AppContext";
 import { normalizePriceInput } from "@/lib/format";
 import { SearchableSelect, type SelectGroup } from "@/components/form/SearchableSelect";
 import {
   CATEGORY_SUBCATEGORIES,
+  CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY,
+  HOME_CATEGORIES,
   normalizeConstructionRepairSubcategory,
   getDefaultSubcategory,
   isValidSubcategoryForCategory,
   normalizeRealEstateSubcategory,
+  REAL_ESTATE_RESIDENTIAL_SUBCATEGORIES,
 } from "@/lib/categories";
 import {
   BEAUTY_CONDITION_OPTIONS,
@@ -23,15 +48,7 @@ import {
 } from "@/lib/beauty";
 import "../../sell/sell.css";
 
-type Draft = {
-  title: string;
-  category: string;
-  city: string;
-  area: string;
-  subcity?: string;
-  subcategory?: string;
-  images: string[];
-};
+type Draft = StorableSellDraft;
 
 type Option = { value: string; label: string };
 
@@ -63,7 +80,38 @@ const TV_AUDIO_BRAND_MAP: Record<string, string[]> = {
 const HOME_APPLIANCE_TYPE_OPTIONS = ["Washer", "Dryer", "Refrigerator", "Oven", "Microwave", "Other"];
 const FURNITURE_ITEM_OPTIONS = ["Sofa", "Table", "Chair", "Bed", "Wardrobe", "Desk", "Shelf", "Other"];
 const FURNITURE_MATERIAL_OPTIONS = ["Wood", "Metal", "Plastic", "Leather", "Fabric", "Other"];
-const STORAGE_UNIT_OPTIONS = ["GB", "TB", "Other"];
+/** Laptop / desktop OS picker (names + version numbers only; no release years). */
+const LAPTOP_DESKTOP_OS_OPTIONS = [
+  "Windows 7",
+  "Windows 8",
+  "Windows 8.1",
+  "Windows 10",
+  "Windows 11",
+  "Mac OS X 10.6 Snow Leopard",
+  "Mac OS X 10.7 Lion",
+  "Mac OS X 10.8 Mountain Lion",
+  "Mac OS X 10.9 Mavericks",
+  "Mac OS X 10.10 Yosemite",
+  "Mac OS X 10.11 El Capitan",
+  "macOS 10.12 Sierra",
+  "macOS 10.13 High Sierra",
+  "macOS 10.14 Mojave",
+  "macOS 10.15 Catalina",
+  "macOS 11 Big Sur",
+  "macOS 12 Monterey",
+  "macOS 13 Ventura",
+  "macOS 14 Sonoma",
+  "macOS 15 Sequoia",
+  "Solaris 11.4",
+  "IBM AIX",
+  "HP-UX",
+  "FreeBSD 14",
+  "OpenBSD 7",
+  "NetBSD 10",
+  "ChromeOS",
+  "Other",
+];
+const GPU_VENDOR_RADIO_OPTIONS = ["NVIDIA", "AMD", "Intel", "Other"];
 const MOBILE_DISPLAY_TYPE_OPTIONS = ["LCD", "LED", "IPS LCD", "AMOLED", "Super AMOLED", "OLED", "Retina", "TFT", "Other"];
 const COMPUTER_ACCESSORY_TYPE_OPTIONS = [
   "Mouse",
@@ -225,7 +273,9 @@ const CATEGORY_BRAND_OPTIONS: Record<string, string[]> = {
   Watches: ["Casio", "Seiko", "Citizen", "Rolex", "Omega", "Fossil", "Timex", "Local Watch Brand", "Other"],
   Jewelry: ["Pandora", "Swarovski", "Tiffany & Co.", "Cartier", "Made in Ethiopia", "Other"],
   Accessories: ["H&M", "Zara", "Nike", "Adidas", ...FASHION_SHARED_BRANDS, "Other"],
+  /** @deprecated legacy category label — prefer CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY */
   "Construction & Repair": ["Bosch", "Makita", "Total", "Stanley", "Local Hardware Distributor", "Other"],
+  [CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY]: ["Bosch", "Makita", "Total", "Stanley", "Local Hardware Distributor", "Other"],
   "Commercial Equipment": ["Caterpillar", "Bosch", "Makita", "KitchenAid", "Local Equipment Supplier", "Other"],
   "Leisure & Hobbies": ["Nike", "Adidas", "Yamaha", "Fender", "Wilson", "Local Sports Shop", "Other"],
   "Kids & Baby Items": ["Chicco", "Fisher-Price", "Huggies", "Pampers", "Made in Ethiopia", "Other"],
@@ -392,25 +442,6 @@ type ElectronicsConfig = {
   brandLabel?: string;
   modelLabel?: string;
 };
-
-function normalizeBrandName(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  const aliases: Record<string, string> = {
-    hp: "HP",
-    "hewlett packard": "HP",
-    dell: "Dell",
-    lenovo: "Lenovo",
-    asus: "Asus",
-    acer: "Acer",
-    samsung: "Samsung",
-    "tp-link": "TP-Link",
-    tplink: "TP-Link",
-    sandisk: "SanDisk",
-    sony: "Sony",
-  };
-  return aliases[trimmed.toLowerCase()] || trimmed;
-}
 
 function uniqueNormalizedBrands(values: string[]): string[] {
   const seen = new Map<string, string>();
@@ -1123,11 +1154,6 @@ const DETAIL_KEYS_TO_PRESERVE = new Set([
   "Description",
   "pricing_type",
 ]);
-const REAL_ESTATE_RESIDENTIAL_SUBCATEGORIES = new Set([
-  "Apartment or House for Rent",
-  "Apartment or House for Sale",
-  "Short-Term Rentals",
-]);
 const REAL_ESTATE_PROPERTY_TYPES = [
   "Apartment",
   "House",
@@ -1216,11 +1242,30 @@ const PHONE_OS_BY_BRAND: Record<string, string> = {
   Motorola: "Android",
 };
 
+function hasMeaningfulListingInput(details: Record<string, string>, price: string, description: string): boolean {
+  if (price.trim() || description.trim()) return true;
+  return Object.values(details).some((v) => String(v || "").trim() !== "");
+}
+
+function describeListingUndoBanner(reason: ListingUndoReason | undefined): string {
+  if (reason === "detection_prefill") {
+    return "Title detection updated your listing fields. You can restore the previous values.";
+  }
+  if (reason === "taxonomy_change") {
+    return "You changed category or subcategory and cleared listing fields. You can restore the previous state.";
+  }
+  if (reason === "form_reset") {
+    return "Listing fields were reset. You can restore the previous state.";
+  }
+  return "You can undo your last listing change.";
+}
+
 export default function SellDetailsPage() {
   const params = useSearchParams();
   const category = params.get("category");
   const router = useRouter();
   const { user } = useAppContext();
+  const showToast = useToast();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [subCategory, setSubcategory] = useState("");
   const [details, setDetails] = useState<Record<string, string>>({});
@@ -1232,15 +1277,72 @@ export default function SellDetailsPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [submitToast, setSubmitToast] = useState("");
+  const [taxonomyChangeModal, setTaxonomyChangeModal] = useState<null | { kind: "category" | "subcategory"; target: string }>(null);
+  const [showUndoBanner, setShowUndoBanner] = useState(false);
   const isElectronicsCategory = Boolean(draft && ["Mobile Devices", "Computing & Electronics", "TV & Audio Systems"].includes(draft.category));
+  const detectionPrefillTokenRef = useRef<string>("");
+  const userTouchedDetailKeysRef = useRef<Set<string>>(new Set());
+  const detailsForDetectionRef = useRef(details);
+  detailsForDetectionRef.current = details;
+
+  const detectionModelDeps = useMemo<ListingDetectionModelDeps>(
+    () => ({
+      vehicleModelsForBrand: (b) => VEHICLE_MODEL_SUGGESTIONS[b] || [],
+      electronicsModelsForBrand: (sub, b) => ELECTRONICS_CONFIG[sub]?.modelSuggestions?.[b] || [],
+      fashionBrandOptionsForSub: (sub) => CATEGORY_BRAND_OPTIONS[sub],
+      electronicsSubHasModelSuggestions: (sub) => Boolean(ELECTRONICS_CONFIG[sub]?.modelSuggestions),
+    }),
+    []
+  );
+
+  const detectionHintsFingerprint = useMemo(
+    () =>
+      [
+        draft?.detectedHints?.brand ?? "",
+        draft?.detectedHints?.model ?? "",
+        draft?.detectedHints?.constructionItem ?? "",
+        draft?.constructionItem ?? "",
+      ].join("|"),
+    [draft?.constructionItem, draft?.detectedHints]
+  );
 
   useEffect(() => {
-    const nextDraft = readStoredDraft();
-    if (!nextDraft) return;
+    userTouchedDetailKeysRef.current.clear();
+  }, [detectionHintsFingerprint]);
+
+  useEffect(() => {
+    setShowUndoBanner(Boolean(peekListingUndoFrame()));
+  }, []);
+
+  useEffect(() => {
+    detectionPrefillTokenRef.current = "";
+  }, [category]);
+
+  useEffect(() => {
+    const loaded = readStoredDraft();
+    if (!loaded) return;
+
+    let nextDraft = loaded;
+    const { urls: safeImages, warnings: imageWarnings } = sanitizeListingImageUrls(loaded.images);
+    if (safeImages.length !== loaded.images.length || imageWarnings.length) {
+      imageWarnings.forEach((msg) => showToast(msg, "warning"));
+      nextDraft = { ...loaded, images: safeImages };
+      try {
+        const raw = window.localStorage.getItem("sellDraft");
+        const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+        window.localStorage.setItem("sellDraft", JSON.stringify({ ...parsed, images: safeImages }));
+      } catch {
+        // ignore storage sync failures
+      }
+    }
+
     setDraft(nextDraft);
     let savedSubcategory = nextDraft.subcategory;
     if (nextDraft.category === "Real Estate" && savedSubcategory) {
       savedSubcategory = normalizeRealEstateSubcategory(savedSubcategory);
+    }
+    if (nextDraft.category === CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY && savedSubcategory) {
+      savedSubcategory = normalizeConstructionRepairSubcategory(savedSubcategory);
     }
     const nextSubcategory = isValidSubcategoryForCategory(nextDraft.category, savedSubcategory)
       ? (savedSubcategory as string)
@@ -1256,8 +1358,8 @@ export default function SellDetailsPage() {
         // ignore
       }
     }
-    setTitleError(nextDraft.title.trim().length < 5 ? "Title must be at least 5 characters." : "");
-  }, [category]);
+    setTitleError(nextDraft.title.trim().length < 3 ? "Title must be at least 3 characters." : "");
+  }, [category, showToast]);
 
   useEffect(() => {
     if (!draft?.category || !subCategory) return;
@@ -1389,6 +1491,29 @@ export default function SellDetailsPage() {
   }, [isElectronicsCategory, subCategory]);
 
   useEffect(() => {
+    if (!draft || !subCategory) return;
+    const prev = detailsForDetectionRef.current;
+    const outcome = runListingDetectionPrefill(
+      {
+        draft,
+        subCategory,
+        previousDetails: prev,
+        appliedToken: detectionPrefillTokenRef.current,
+      },
+      detectionModelDeps
+    );
+    if (outcome.kind === "skip") return;
+    const merged = mergeDetectionRespectingUserEditedKeys(prev, outcome.details, userTouchedDetailKeysRef.current);
+    if (JSON.stringify(prev) === JSON.stringify(merged)) {
+      detectionPrefillTokenRef.current = outcome.token;
+      return;
+    }
+    detectionPrefillTokenRef.current = outcome.token;
+    logListingAudit("listing.sell.detection_prefill", { subCategory });
+    setDetails(merged);
+  }, [draft, subCategory, detectionModelDeps]);
+
+  useEffect(() => {
     if (!draft?.category || !subCategory) return;
     const isKnown =
       (draft.category === "Vehicles" && VEHICLE_SUBCATEGORY_SCHEMA.has(subCategory)) ||
@@ -1411,6 +1536,7 @@ export default function SellDetailsPage() {
   }, [submitToast]);
 
   function setDetail(key: string, value: string) {
+    userTouchedDetailKeysRef.current.add(key);
     setDetails((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -1430,14 +1556,186 @@ export default function SellDetailsPage() {
     setCondition(value === "New" || value === "Brand New" ? "NEW" : "USED");
   }
 
-  const validTitle = Boolean(draft?.title.trim().length && draft.title.trim().length >= 5);
+  function runAtomicFormReset(options?: { skipUndoSnapshot?: boolean }) {
+    userTouchedDetailKeysRef.current.clear();
+    if (
+      !options?.skipUndoSnapshot &&
+      draft &&
+      hasMeaningfulListingInput(details, price, description)
+    ) {
+      pushListingUndoFrame({
+        reason: "form_reset",
+        details: { ...details },
+        price,
+        description,
+        condition,
+        subCategory: subCategory,
+        draftJson: JSON.stringify(draft),
+      });
+      logListingAudit("listing.sell.form_reset_undo_snapshot", {
+        category: draft.category,
+        subcategory: subCategory,
+      });
+      setShowUndoBanner(true);
+    }
+    runAtomicListingFormReset({
+      setDetails,
+      setPrice,
+      setDescription,
+      setCondition,
+      setSubmitError,
+      setSubmitSuccess,
+      clearDetectionPrefillToken: () => {
+        detectionPrefillTokenRef.current = "";
+      },
+    });
+  }
+
+  function applyConfirmedCategoryChange(target: string) {
+    if (!draft) return;
+    runAtomicFormReset({ skipUndoSnapshot: true });
+    const nextSub = getDefaultSubcategory(target);
+    const nextDraft = normalizeSellDraftForStorage({
+      ...draft,
+      category: target,
+      subcategory: nextSub,
+      detectedHints: undefined,
+      constructionItem: undefined,
+    });
+    setDraft(nextDraft);
+    setSubcategory(nextSub);
+    try {
+      window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+    } catch {
+      // ignore
+    }
+    router.replace(`/sell/details?category=${encodeURIComponent(target)}`);
+    setTaxonomyChangeModal(null);
+  }
+
+  function applyConfirmedSubcategoryChange(target: string) {
+    runAtomicFormReset({ skipUndoSnapshot: true });
+    setSubcategory(target);
+    if (draft) {
+      const nextDraft = normalizeSellDraftForStorage({
+        ...draft,
+        subcategory: target,
+        detectedHints: undefined,
+        constructionItem: undefined,
+      });
+      setDraft(nextDraft);
+      try {
+        window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+      } catch {
+        // ignore
+      }
+    }
+    setTaxonomyChangeModal(null);
+  }
+
+  function requestCategoryChange(target: string) {
+    if (!draft || target === draft.category) return;
+    if (hasMeaningfulListingInput(details, price, description)) {
+      setTaxonomyChangeModal({ kind: "category", target });
+      return;
+    }
+    applyConfirmedCategoryChange(target);
+  }
+
+  function requestSubcategoryChange(target: string) {
+    if (target === subCategory) return;
+    if (hasMeaningfulListingInput(details, price, description)) {
+      setTaxonomyChangeModal({ kind: "subcategory", target });
+      return;
+    }
+    runAtomicFormReset();
+    setSubcategory(target);
+    if (draft) {
+      const nextDraft = normalizeSellDraftForStorage({
+        ...draft,
+        subcategory: target,
+        detectedHints: undefined,
+        constructionItem: undefined,
+      });
+      setDraft(nextDraft);
+      try {
+        window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  function confirmTaxonomyModal() {
+    if (!taxonomyChangeModal || !draft) {
+      setTaxonomyChangeModal(null);
+      return;
+    }
+    const { kind, target } = taxonomyChangeModal;
+    pushListingUndoFrame({
+      reason: "taxonomy_change",
+      details: { ...details },
+      price,
+      description,
+      condition,
+      subCategory: subCategory,
+      draftJson: JSON.stringify(draft),
+    });
+    setShowUndoBanner(true);
+    if (kind === "category") applyConfirmedCategoryChange(target);
+    else applyConfirmedSubcategoryChange(target);
+    logListingAudit("listing.sell.taxonomy_confirm", { kind, target });
+  }
+
+  function restoreListingUndo() {
+    const frame = popListingUndoFrame();
+    if (!frame) {
+      setShowUndoBanner(Boolean(peekListingUndoFrame()));
+      return;
+    }
+    try {
+      userTouchedDetailKeysRef.current.clear();
+      const nextDraft = parseUndoDraftJson(frame.draftJson);
+      setDraft(nextDraft);
+      setSubcategory(frame.subCategory);
+      setDetails(frame.details);
+      setPrice(frame.price);
+      setDescription(frame.description);
+      setCondition(frame.condition);
+      detectionPrefillTokenRef.current = "";
+      try {
+        window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+      } catch {
+        // ignore
+      }
+      const cat = nextDraft.category;
+      if (cat && category !== cat) {
+        router.replace(`/sell/details?category=${encodeURIComponent(cat)}`);
+      }
+      logListingAudit("listing.sell.undo_restore", { reason: frame.reason });
+    } catch {
+      // ignore corrupt frame
+    } finally {
+      setShowUndoBanner(Boolean(peekListingUndoFrame()));
+    }
+  }
+
+  function dismissListingUndoBanner() {
+    discardTopListingUndoFrame();
+    logListingAudit("listing.sell.undo_dismiss");
+    setShowUndoBanner(Boolean(peekListingUndoFrame()));
+  }
+
+  const validTitle = Boolean(draft?.title.trim().length && draft.title.trim().length >= 3);
   const canPost = Boolean(draft?.title && draft?.category && draft?.city && draft?.area && subCategory && validTitle);
 
   async function submitListing() {
     if (!draft || !canPost) return;
     setSubmitError("");
     setSubmitSuccess("");
-    if (draft.images.length === 0) {
+    const { urls: imageUrls, warnings: listingImageWarnings } = sanitizeListingImageUrls(draft.images);
+    listingImageWarnings.forEach((msg) => showToast(msg, "warning"));
+    if (imageUrls.length === 0) {
       setSubmitError("Please upload at least one photo before posting this listing.");
       return;
     }
@@ -1445,14 +1743,9 @@ export default function SellDetailsPage() {
       setSubmitError("Please add a vendor phone number before posting an item.");
       return;
     }
-    const validationError = validateListingBeforeSubmit(draft.category, subCategory, details, description);
+    const validationError = validateListingDetailsForPublish(draft.category, subCategory, details, description);
     if (validationError) {
       setSubmitError(validationError);
-      return;
-    }
-    const electronicsValidationError = validateElectronicsDetails(subCategory, details);
-    if (electronicsValidationError) {
-      setSubmitError(electronicsValidationError);
       return;
     }
     setSubmitting(true);
@@ -1467,7 +1760,7 @@ export default function SellDetailsPage() {
           subcategory: subCategory,
           city: draft.city,
           area: draft.subcity || draft.area,
-          images: draft.images,
+          images: imageUrls,
           price: price || undefined,
           description: description || undefined,
           condition,
@@ -1485,6 +1778,8 @@ export default function SellDetailsPage() {
       setSubmitting(false);
       setSubmitSuccess("Item posted successfully");
       setSubmitToast("Item posted successfully");
+      clearListingUndoStack();
+      setShowUndoBanner(false);
       window.localStorage.removeItem("sellDraft");
       window.setTimeout(() => {
         router.push("/");
@@ -1502,6 +1797,57 @@ export default function SellDetailsPage() {
   return (
     <div className="sellPage">
       {submitToast ? <div className="appToast appToastSuccess">{submitToast}</div> : null}
+      {showUndoBanner ? (
+        <div
+          className="appToast appToastWarning"
+          style={{
+            position: "relative",
+            margin: "0 auto 12px",
+            maxWidth: 720,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "10px",
+            justifyContent: "center",
+            animation: "none",
+          }}
+        >
+          <span>{describeListingUndoBanner(peekListingUndoFrame()?.reason)}</span>
+          <button type="button" className="sellModalBtn sellModalBtnPrimary" onClick={restoreListingUndo}>
+            Restore previous
+          </button>
+          <button type="button" className="sellModalBtn sellModalBtnGhost" onClick={dismissListingUndoBanner}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+      {taxonomyChangeModal ? (
+        <div
+          className="sellModalOverlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="taxonomy-change-title"
+          onClick={() => setTaxonomyChangeModal(null)}
+        >
+          <div className="sellModalCard" onClick={(e) => e.stopPropagation()}>
+            <h2 id="taxonomy-change-title" className="sellModalTitle">
+              Change {taxonomyChangeModal.kind === "category" ? "category" : "subcategory"}?
+            </h2>
+            <p className="sellModalBody">
+              Changing the {taxonomyChangeModal.kind === "category" ? "category" : "subcategory"} will permanently clear all
+              listing details you have already entered (including any detected or prefilled values, price, and description).
+            </p>
+            <div className="sellModalActions">
+              <button type="button" className="sellModalBtn sellModalBtnGhost" onClick={() => setTaxonomyChangeModal(null)}>
+                Cancel
+              </button>
+              <button type="button" className="sellModalBtn sellModalBtnPrimary" onClick={confirmTaxonomyModal}>
+                Clear data and continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="sellHeaderBar">
         <div className="sellHeaderInner">
           <h1 className="sellHeaderTitle">Post ad</h1>
@@ -1518,10 +1864,13 @@ export default function SellDetailsPage() {
                   <span className="sellFieldLabel">Title</span>
                   <input className="sellInput" value={draft.title} readOnly />
                 </label>
-                <label className="sellField">
-                  <span className="sellFieldLabel">Category</span>
-                  <input className="sellInput" value={draft.category} readOnly />
-                </label>
+                <SearchableSelect
+                  label="Category"
+                  value={draft.category}
+                  placeholder="Select category"
+                  options={HOME_CATEGORIES.map((c) => ({ value: c.name, label: `${c.icon} ${c.name}` }))}
+                  onChange={(v) => requestCategoryChange(v)}
+                />
                 <label className="sellField">
                   <span className="sellFieldLabel">City</span>
                   <input className="sellInput" value={draft.city} readOnly />
@@ -1557,7 +1906,13 @@ export default function SellDetailsPage() {
             <div className="sellSection">
               <h2 className="sellCardTitle sellCardTitleCompact">Subcategory</h2>
               <div className="sellSubcategoryRow">
-                <SearchableSelect key={`subcategory-${draft.category}`} label="Subcategory" value={subCategory} options={(CATEGORY_SUBCATEGORIES[draft.category] || []).map(toOption)} onChange={setSubcategory} />
+                <SearchableSelect
+                  key={`subcategory-${draft.category}`}
+                  label="Subcategory"
+                  value={subCategory}
+                  options={(CATEGORY_SUBCATEGORIES[draft.category] || []).map(toOption)}
+                  onChange={(v) => requestSubcategoryChange(v)}
+                />
               </div>
             </div>
 
@@ -1698,23 +2053,6 @@ function VehicleForm({
   );
 }
 
-function brandShowsBatteryHealthForMobile(details: Record<string, string>): boolean {
-  const brand = details["Brand"] || "";
-  const custom = (details["Custom Brand"] || "").toLowerCase();
-  const model = (details["Model"] || "").toLowerCase();
-  const customModel = (details["Custom Model"] || "").toLowerCase();
-  const brandLower = brand.toLowerCase();
-  if (brand === "Apple") return true;
-  return (
-    brandLower.includes("apple") ||
-    brandLower.includes("iphone") ||
-    custom.includes("apple") ||
-    custom.includes("iphone") ||
-    model.includes("iphone") ||
-    customModel.includes("iphone")
-  );
-}
-
 function ElectronicsForm({
   category,
   details,
@@ -1780,14 +2118,7 @@ function ElectronicsForm({
             <ChoicePills key={`${subcategory}-condition`} label="Condition" value={details["Condition"] || ""} options={["New", "Used", "Refurbished"]} onChange={onCondition} />
             <TextField label="Screen Size" value={details["Screen Size"] || ""} onChange={(value) => onField("Screen Size", value)} />
             <TextField label="RAM" value={details["RAM"] || ""} onChange={(value) => onField("RAM", value)} />
-            <StorageFields
-              label="Internal Storage"
-              value={details["Internal Storage"] || ""}
-              rawValue={details["Internal Storage Value"] || ""}
-              rawUnit={details["Internal Storage Unit"] || ""}
-              onValueChange={(value) => onField("Internal Storage Value", value)}
-              onUnitChange={(value) => onField("Internal Storage Unit", value)}
-            />
+            <GbTbStorageRow displayLabel="Internal Storage" combinedKey="Internal Storage" details={details} onField={onField} />
             <ColorSelect label="Color" value={details["Color"] || ""} onChange={(value) => onField("Color", value)} />
             <SearchableSelect key={`${subcategory}-operating-system`} label="Operating System" value={details["Operating System"] || ""} options={(isAppleBrand ? ["iOS"] : ["Android", "Windows Mobile", "Other"]).map(toOption)} onChange={(value) => onField("Operating System", value)} disabled={phoneOsLocked} />
             <SearchableSelect key={`${subcategory}-display-type`} label="Display Type" value={details["Display Type"] || ""} options={MOBILE_DISPLAY_TYPE_OPTIONS.map(toOption)} onChange={(value) => onField("Display Type", value)} />
@@ -1815,14 +2146,7 @@ function ElectronicsForm({
             <ChoicePills key={`${subcategory}-condition`} label="Condition" value={details["Condition"] || ""} options={["New", "Used", "Refurbished"]} onChange={onCondition} />
             <TextField label="Screen Size" value={details["Screen Size"] || ""} onChange={(value) => onField("Screen Size", value)} />
             <TextField label="RAM" value={details["RAM"] || ""} onChange={(value) => onField("RAM", value)} />
-            <StorageFields
-              label="Storage"
-              value={details["Storage"] || ""}
-              rawValue={details["Storage Value"] || ""}
-              rawUnit={details["Storage Unit"] || ""}
-              onValueChange={(value) => onField("Storage Value", value)}
-              onUnitChange={(value) => onField("Storage Unit", value)}
-            />
+            <GbTbStorageRow displayLabel="Storage" combinedKey="Storage" details={details} onField={onField} />
             <SearchableSelect key={`${subcategory}-os`} label="Operating System" value={details["Operating System"] || ""} options={(isAppleBrand ? ["iOS"] : ["Android", "Windows", "Other"]).map(toOption)} onChange={(value) => onField("Operating System", value)} disabled={phoneOsLocked} />
             <TextField label="Connectivity" value={details["Connectivity"] || ""} onChange={(value) => onField("Connectivity", value)} placeholder="Wi-Fi / SIM / eSIM" />
           </>
@@ -1833,7 +2157,7 @@ function ElectronicsForm({
             <TextField label="Case Size (mm)" value={details["Case Size (mm)"] || ""} onChange={(value) => onField("Case Size (mm)", value)} />
             <TextField label="Band Material" value={details["Band Material"] || ""} onChange={(value) => onField("Band Material", value)} />
             <SearchableSelect key={`${subcategory}-connectivity`} label="Connectivity" value={details["Connectivity"] || ""} options={["Bluetooth", "Wi-Fi", "LTE", "GPS", "Multiple"].map(toOption)} onChange={(value) => onField("Connectivity", value)} />
-            <TextField label="Battery Life" value={details["Battery Life"] || ""} onChange={(value) => onField("Battery Life", value)} />
+            <TextField label="Battery Capacity (mAh)" value={details["Battery Capacity (mAh)"] || ""} onChange={(value) => onField("Battery Capacity (mAh)", value)} />
           </>
         ) : null}
         {subcategory === "Mobile Accessories" ? (
@@ -1859,19 +2183,12 @@ function ElectronicsForm({
           <>
             <ChoicePills key={`${subcategory}-condition`} label="Condition" value={details["Condition"] || ""} options={["Brand New", "Slightly Used", "Used"]} onChange={onCondition} />
             <TextField label="Processor (CPU)" value={details["Processor (CPU)"] || ""} onChange={(value) => onField("Processor (CPU)", value)} />
-            <TextField label="Graphics (GPU)" value={details["Graphics (GPU)"] || ""} onChange={(value) => onField("Graphics (GPU)", value)} />
+            <LaptopDesktopGpuSection details={details} onField={onField} />
             <TextField label="RAM" value={details["RAM"] || ""} onChange={(value) => onField("RAM", value)} />
-            <StorageFields
-              label="Storage"
-              value={details["Storage"] || ""}
-              rawValue={details["Storage Value"] || ""}
-              rawUnit={details["Storage Unit"] || ""}
-              onValueChange={(value) => onField("Storage Value", value)}
-              onUnitChange={(value) => onField("Storage Unit", value)}
-            />
+            <GbTbStorageRow displayLabel="Storage" combinedKey="Storage" details={details} onField={onField} />
             <TextField label="Screen Size" value={details["Screen Size"] || ""} onChange={(value) => onField("Screen Size", value)} />
-            <SearchableSelect key={`${subcategory}-operating-system`} label="Operating System" value={details["Operating System"] || ""} options={["Windows 11", "Windows 10", "macOS", "Linux", "ChromeOS"].map(toOption)} onChange={(value) => onField("Operating System", value)} />
-            <TextField label="Battery Life" value={details["Battery Life"] || ""} onChange={(value) => onField("Battery Life", value)} />
+            <LaptopDesktopOsSection details={details} onField={onField} />
+            <TextField label="Battery Capacity (mAh)" value={details["Battery Capacity (mAh)"] || ""} onChange={(value) => onField("Battery Capacity (mAh)", value)} />
           </>
         ) : null}
         {subcategory === "Televisions" ? (
@@ -1921,20 +2238,13 @@ function ElectronicsForm({
           <>
             <ChoicePills key={`${subcategory}-condition`} label="Condition" value={details["Condition"] || ""} options={["Brand New", "Slightly Used", "Used"]} onChange={onCondition} />
             <TextField label="Processor (CPU)" value={details["Processor (CPU)"] || ""} onChange={(value) => onField("Processor (CPU)", value)} />
-            <TextField label="Graphics (GPU)" value={details["Graphics (GPU)"] || ""} onChange={(value) => onField("Graphics (GPU)", value)} />
+            <LaptopDesktopGpuSection details={details} onField={onField} />
             <TextField label="RAM" value={details["RAM"] || ""} onChange={(value) => onField("RAM", value)} />
-            <StorageFields
-              label="Storage"
-              value={details["Storage"] || ""}
-              rawValue={details["Storage Value"] || ""}
-              rawUnit={details["Storage Unit"] || ""}
-              onValueChange={(value) => onField("Storage Value", value)}
-              onUnitChange={(value) => onField("Storage Unit", value)}
-            />
+            <GbTbStorageRow displayLabel="Storage" combinedKey="Storage" details={details} onField={onField} />
             <TextField label="Motherboard" value={details["Motherboard"] || ""} onChange={(value) => onField("Motherboard", value)} />
             <TextField label="Power Supply (PSU)" value={details["Power Supply (PSU)"] || ""} onChange={(value) => onField("Power Supply (PSU)", value)} />
             <TextField label="Case Type" value={details["Case Type"] || ""} onChange={(value) => onField("Case Type", value)} />
-            <SearchableSelect key={`${subcategory}-operating-system`} label="Operating System" value={details["Operating System"] || ""} options={["Windows 11", "Windows 10", "macOS", "Linux", "No OS"].map(toOption)} onChange={(value) => onField("Operating System", value)} />
+            <LaptopDesktopOsSection details={details} onField={onField} />
           </>
         ) : null}
         {subcategory === "Computer Accessories" ? (
@@ -2109,7 +2419,7 @@ function CategoryForm({
             <RadioGroup label="On-site Service" value={details["On-site Service"] || "No"} options={["Yes", "No"]} onChange={(value) => onField("On-site Service", value)} />
           </>
         ) : null}
-        {category === "Construction & Repair" ? (
+        {category === CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY ? (
           <>
             <SearchableSelect label="Brand / Type" value={details["Brand"] || ""} options={(CATEGORY_BRAND_OPTIONS[category] || ["Other"]).map(toOption)} onChange={(value) => onField("Brand", value)} />
             {details["Brand"] === "Other" ? <TextField label="Enter Brand / Type" value={details["Custom Brand"] || ""} onChange={(value) => onField("Custom Brand", value)} /> : null}
@@ -2301,29 +2611,121 @@ function PriceField({ value, onChange }: { value: string; onChange: (value: stri
   return <TextField label="Price (ETB)" value={value} onChange={onChange} placeholder="ETB" />;
 }
 
-function StorageFields({
-  label,
-  value,
-  rawValue,
-  rawUnit,
-  onValueChange,
-  onUnitChange,
+function GbTbStorageRow({
+  displayLabel,
+  combinedKey,
+  details,
+  onField,
 }: {
-  label: string;
-  value: string;
-  rawValue: string;
-  rawUnit: string;
-  onValueChange: (value: string) => void;
-  onUnitChange: (value: string) => void;
+  displayLabel: string;
+  combinedKey: "Internal Storage" | "Storage";
+  details: Record<string, string>;
+  onField: (key: string, value: string) => void;
 }) {
-  const parsed = parseStorageString(value);
-  const nextValue = rawValue || parsed.value;
-  const nextUnit = rawUnit || parsed.unit;
+  const valueKey = `${combinedKey} Value`;
+  const unitKey = `${combinedKey} Unit`;
+  const parsed = parseStorageString(details[combinedKey] || "");
+  const rawValue = details[valueKey] || parsed.value;
+  const unitRaw = (details[unitKey] || parsed.unit || "GB").toUpperCase();
+  const unit = unitRaw === "TB" ? "TB" : "GB";
 
   return (
+    <div className="sellField sellStorageGbTbRow">
+      <span className="sellFieldLabel">{displayLabel}</span>
+      <div className="sellStorageGbTbControls">
+        <input
+          type="number"
+          className="sellInput"
+          inputMode="decimal"
+          value={rawValue}
+          onChange={(e) => onField(valueKey, e.target.value)}
+          min={0}
+          step="any"
+        />
+        <div className="sellStorageUnitToggles" role="group" aria-label={`${displayLabel} unit`}>
+          <button
+            type="button"
+            className={`sellStorageUnitToggle${unit === "GB" ? " sellStorageUnitToggleActive" : ""}`}
+            onClick={() => onField(unitKey, "GB")}
+          >
+            GB
+          </button>
+          <button
+            type="button"
+            className={`sellStorageUnitToggle${unit === "TB" ? " sellStorageUnitToggleActive" : ""}`}
+            onClick={() => onField(unitKey, "TB")}
+          >
+            TB
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LaptopDesktopGpuSection({
+  details,
+  onField,
+}: {
+  details: Record<string, string>;
+  onField: (key: string, value: string) => void;
+}) {
+  const vendor = details["GPU Vendor"] || "";
+  return (
     <>
-      <TextField label={`${label} Value`} value={nextValue} onChange={onValueChange} type="number" />
-      <SearchableSelect label={`${label} Unit`} value={nextUnit} options={STORAGE_UNIT_OPTIONS.map(toOption)} onChange={onUnitChange} />
+      <RadioGroup
+        label="Graphics (GPU)"
+        value={vendor}
+        options={[...GPU_VENDOR_RADIO_OPTIONS]}
+        onChange={(v) => {
+          onField("GPU Vendor", v);
+          if (v !== "Other") onField("GPU Other Name", "");
+        }}
+      />
+      {vendor === "Other" ? (
+        <TextField
+          label="GPU name"
+          value={details["GPU Other Name"] || ""}
+          onChange={(t) => onField("GPU Other Name", t)}
+          placeholder="e.g. Apple M3"
+        />
+      ) : null}
+    </>
+  );
+}
+
+function LaptopDesktopOsSection({
+  details,
+  onField,
+}: {
+  details: Record<string, string>;
+  onField: (key: string, value: string) => void;
+}) {
+  const os = details["Operating System"] || "";
+  const osOptions =
+    os && !LAPTOP_DESKTOP_OS_OPTIONS.includes(os)
+      ? [...LAPTOP_DESKTOP_OS_OPTIONS.filter((o) => o !== "Other"), os, "Other"]
+      : LAPTOP_DESKTOP_OS_OPTIONS;
+  return (
+    <>
+      <SearchableSelect
+        label="Operating System"
+        value={os}
+        placeholder="Search or select OS"
+        options={osOptions.map(toOption)}
+        onChange={(v) => {
+          onField("Operating System", v);
+          if (v !== "Other") onField("Computer OS Other", "");
+        }}
+      />
+      {os === "Other" ? (
+        <TextField
+          label="Specify operating system"
+          value={details["Computer OS Other"] || ""}
+          onChange={(t) => onField("Computer OS Other", t)}
+          placeholder="e.g. Linux distro"
+        />
+      ) : null}
     </>
   );
 }
@@ -2377,56 +2779,6 @@ function BatteryHealthPercentField({ value, onChange }: { value: string; onChang
       />
     </label>
   );
-}
-
-function finalizeListingDetailsForSubmit(
-  details: Record<string, string>,
-  category: string,
-  subcategory: string
-): Record<string, string> {
-  const next = { ...details };
-  if (!next.pricing_type || String(next.pricing_type).trim() === "") {
-    if (next["Price Type"] === "Negotiable" || next["Negotiable?"] === "Yes") next.pricing_type = "Negotiable";
-    else next.pricing_type = "Fixed";
-  }
-  delete next["Price Type"];
-  delete next["Negotiable?"];
-
-  if (category === "Real Estate") {
-    delete next["Delivery Available"];
-    delete next["Delivery Charged"];
-    delete next["Delivery Charge"];
-    if (subcategory === "Apartment or House for Sale") {
-      next["Listing Type"] = "For Sale";
-    }
-    if (subcategory === "Apartment or House for Rent") {
-      next["Listing Type"] = "For Rent";
-    }
-    if (next["Listing Type"] !== "For Rent") {
-      delete next["Minimum Rental Period"];
-    }
-  }
-
-  applyStorageFormatting(next, "Internal Storage");
-  applyStorageFormatting(next, "Storage");
-
-  if (category === "Vehicles" && (subcategory === "Cars" || subcategory === "SUVs & Crossovers")) {
-    if (!next.Seats || String(next.Seats).trim() === "") next.Seats = "5";
-  }
-
-  if (next["Battery Health (%)"] !== undefined && String(next["Battery Health (%)"]).trim() !== "") {
-    const n = Math.min(100, Math.max(0, Number(String(next["Battery Health (%)"]).replace(/[^\d.-]/g, "")) || 0));
-    next["Battery Health (%)"] = String(Math.round(n));
-  }
-  if (!brandShowsBatteryHealthForMobile(next)) {
-    delete next["Battery Health (%)"];
-  }
-
-  if (subcategory !== "Smartphones" && subcategory !== "Feature Phones") {
-    delete next["SIM Count"];
-  }
-
-  return next;
 }
 
 function NumberField({
@@ -2768,19 +3120,8 @@ function readStoredDraft(): Draft | null {
   try {
     const raw = window.localStorage.getItem("sellDraft");
     if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as Partial<Draft> | null;
-    if (!parsed || typeof parsed !== "object") return null;
-
-    return {
-      title: typeof parsed.title === "string" ? parsed.title : "",
-      category: typeof parsed.category === "string" ? parsed.category : "",
-      city: typeof parsed.city === "string" ? parsed.city : "",
-      area: typeof parsed.area === "string" ? parsed.area : "",
-      subcity: typeof parsed.subcity === "string" ? parsed.subcity : undefined,
-      subcategory: typeof parsed.subcategory === "string" ? parsed.subcategory : undefined,
-      images: Array.isArray(parsed.images) ? parsed.images.filter((image): image is string => typeof image === "string") : [],
-    };
+    const parsed = JSON.parse(raw) as unknown;
+    return normalizeSellDraftForStorage(parsed as Partial<StorableSellDraft>);
   } catch {
     return null;
   }
@@ -2791,92 +3132,6 @@ function splitList(value?: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function parseStorageString(value?: string): { value: string; unit: string } {
-  const trimmed = (value || "").trim();
-  if (!trimmed) return { value: "", unit: "" };
-  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([A-Za-z]+)?$/);
-  if (!match) return { value: "", unit: "" };
-  return { value: match[1] || "", unit: match[2] || "" };
-}
-
-function applyStorageFormatting(next: Record<string, string>, baseLabel: "Internal Storage" | "Storage") {
-  const valueKey = `${baseLabel} Value`;
-  const unitKey = `${baseLabel} Unit`;
-  const numeric = (next[valueKey] || "").trim();
-  const unit = (next[unitKey] || "").trim();
-
-  if (numeric) {
-    next[baseLabel] = unit ? `${numeric} ${unit}` : numeric;
-  } else if (!numeric && next[baseLabel]) {
-    const parsed = parseStorageString(next[baseLabel]);
-    next[baseLabel] = parsed.value && parsed.unit ? `${parsed.value} ${parsed.unit}` : next[baseLabel];
-  }
-}
-
-function validateListingBeforeSubmit(category: string, subcategory: string, details: Record<string, string>, description: string): string | null {
-  if (category !== "Real Estate" || !REAL_ESTATE_RESIDENTIAL_SUBCATEGORIES.has(subcategory)) return null;
-
-  const propertyTypes = splitList(details["Property Type"]);
-  const isApartmentSelected = propertyTypes.includes("Apartment");
-  const propertyAddress = (details["Property Address"] || "").trim();
-  const estateName = (details["Estate Name"] || "").trim();
-  const propertySize = (details["Property Size"] || "").trim();
-  const listingType = (
-    subcategory === "Apartment or House for Sale"
-      ? "For Sale"
-      : subcategory === "Apartment or House for Rent"
-        ? "For Rent"
-        : details["Listing Type"] || ""
-  ).trim();
-  const listedBy = (details["Listed By"] || "").trim();
-  const price = (details["Price (ETB)"] || "").trim();
-  const trimmedDescription = description.trim();
-
-  if (!propertyAddress) return "Property Address is required.";
-  if (propertyAddress.length > 60) return "Property Address must be 60 characters or less.";
-  if (estateName.length > 60) return "Estate Name must be 60 characters or less.";
-  if (!propertySize) return "Property Size is required.";
-  if (propertyTypes.length === 0) return "Please select at least one Property Type.";
-  if (!listingType) return "Listing Type is required.";
-  if (!listedBy) return "Listed By is required.";
-  if (!price) return "Price is required.";
-  if (!trimmedDescription) return "Description is required.";
-  if (trimmedDescription.length > 850) return "Description must be 850 characters or less.";
-  if (listingType === "For Rent" && !(details["Minimum Rental Period"] || "").trim()) return "Minimum Rental Period is required for rental listings.";
-
-  if (isApartmentSelected) {
-    if (!(details["Condition"] || "").trim()) return "Condition is required when Apartment is selected.";
-    if (!(details["Furnishing"] || "").trim()) return "Furnishing is required when Apartment is selected.";
-    if (!(details["Bathrooms"] || "").trim()) return "Bathrooms is required when Apartment is selected.";
-    const bedrooms = Number(details["Bedrooms"] || "0");
-    if (!Number.isFinite(bedrooms) || bedrooms < 1) return "Bedrooms must be at least 1 when Apartment is selected.";
-  }
-
-  return null;
-}
-
-function validateElectronicsDetails(subcategory: string, details: Record<string, string>): string | null {
-  if (["Smartphones", "Feature Phones"].includes(subcategory)) {
-    const numeric = (details["Internal Storage Value"] || parseStorageString(details["Internal Storage"]).value || "").trim();
-    const unit = (details["Internal Storage Unit"] || parseStorageString(details["Internal Storage"]).unit || "").trim();
-    if (!numeric) return "Internal Storage Value is required.";
-    if (!unit) return "Internal Storage Unit is required.";
-  }
-
-  if (["Tablets", "Laptops", "Desktop Computers"].includes(subcategory)) {
-    const numeric = (details["Storage Value"] || parseStorageString(details["Storage"]).value || "").trim();
-    const unit = (details["Storage Unit"] || parseStorageString(details["Storage"]).unit || "").trim();
-    if (!numeric) return "Storage Value is required.";
-    if (!unit) return "Storage Unit is required.";
-  }
-
-  if (subcategory === "Computer Accessories" && splitList(details["Accessory Type"]).length === 0) {
-    return "Accessory Type is required for Computer Accessories.";
-  }
-
-  return null;
 }
 
 function getModelPlaceholder(brand?: string, customBrand?: string, modelSuggestions?: Record<string, string[]>) {

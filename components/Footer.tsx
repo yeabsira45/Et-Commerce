@@ -33,16 +33,13 @@ export function Footer() {
           <div className="footerCol">
             <h3 className="footerHeading">About us</h3>
             <a href="#" className="footerLink">
-              About ET-Commerce
+              About ET-Commerce Classifieds
             </a>
             <a href="#" className="footerLink">
               Terms &amp; Conditions
             </a>
             <a href="#" className="footerLink">
               Privacy Policy
-            </a>
-            <a href="#" className="footerLink">
-              Billing Policy
             </a>
             <a href="#" className="footerLink">
               Cookie Policy
@@ -68,18 +65,14 @@ export function Footer() {
             </a>
           </div>
 
-          <div className="footerCol footerCol--apps">
-            <h3 className="footerHeading">Our apps (Comming Soon)</h3>
-            <div className="footerAppBadges">
-              <button type="button" className="footerBadge footerBadge--apple">
-                <span className="footerBadgeTitle">Download on the</span>
-                <span className="footerBadgeStore">App Store</span>
-              </button>
-              <button type="button" className="footerBadge footerBadge--google">
-                <span className="footerBadgeTitle">Get it on</span>
-                <span className="footerBadgeStore">Google Play</span>
-              </button>
-            </div>
+          <div className="footerCol">
+            <h3 className="footerHeading">How it works</h3>
+            <p className="modalSub" style={{ margin: 0 }}>
+              ET-Commerce connects buyers and sellers directly.
+            </p>
+            <p className="modalSub" style={{ margin: 0 }}>
+              Message or call the seller, meet safely, and agree on details in person.
+            </p>
           </div>
 
           <div className="footerCol">

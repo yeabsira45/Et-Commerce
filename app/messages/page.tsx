@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAppContext } from "@/components/AppContext";
-import { messageService } from "@/lib/messageService";
 import { Avatar } from "@/components/Avatar";
+import { useToast } from "@/components/ToastProvider";
 
 type Message = {
   id: string;
@@ -26,12 +26,19 @@ export default function MessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, conversations, loadConversations, sendMessage, subscribeSocket, activeConversationId, setActiveConversationId } = useAppContext();
+  const showToast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<TabKey>("all");
   const [mobileListVisible, setMobileListVisible] = useState(true);
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [threadError, setThreadError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [threadReloadNonce, setThreadReloadNonce] = useState(0);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
@@ -40,9 +47,19 @@ export default function MessagesPage() {
 
   const requestedConversationId = searchParams.get("conversation");
 
-  useEffect(() => {
-    loadConversations();
+  const refreshConversationList = useCallback(async () => {
+    setLoadingConversations(true);
+    setConversationError(null);
+    const ok = await loadConversations();
+    if (!ok) {
+      setConversationError("We could not load your conversations right now. Please try again.");
+    }
+    setLoadingConversations(false);
   }, [loadConversations]);
+
+  useEffect(() => {
+    void refreshConversationList();
+  }, [refreshConversationList]);
 
   useEffect(() => {
     if (requestedConversationId) {
@@ -86,15 +103,58 @@ export default function MessagesPage() {
       setMessages([]);
       return;
     }
-    setMessages(messageService.getMessages(activeConversation.id));
-    messageService.markConversationRead(activeConversation.id, user.id);
-    loadConversations();
-  }, [activeConversation?.id, loadConversations, user]);
+
+    let cancelled = false;
+    const conversationId = activeConversation.id;
+
+    async function loadThread() {
+      try {
+        setLoadingThread(true);
+        setThreadError(null);
+        const [messagesRes] = await Promise.all([
+          fetch(`/api/conversations/${conversationId}/messages`, { cache: "no-store" }),
+          fetch(`/api/conversations/${conversationId}/read`, { method: "POST" }),
+        ]);
+
+        if (!messagesRes.ok || cancelled) {
+          if (!cancelled) {
+            setMessages([]);
+            setThreadError("We could not load this conversation. Please try again.");
+            setLoadingThread(false);
+          }
+          return;
+        }
+        const data = await messagesRes.json();
+        if (!cancelled) {
+          setMessages(data.messages || []);
+          setLoadingThread(false);
+        }
+        await loadConversations();
+      } catch {
+        if (!cancelled) {
+          setMessages([]);
+          setThreadError("We could not load this conversation. Please try again.");
+          setLoadingThread(false);
+        }
+      }
+    }
+
+    void loadThread();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversation?.id, loadConversations, threadReloadNonce, user]);
 
   useEffect(() => {
     const unsub = subscribeSocket("message:new", (payload) => {
       if (activeConversation?.id && payload.conversationId === activeConversation.id) {
-        setMessages(messageService.getMessages(activeConversation.id));
+        setMessages((prev) => {
+          if (prev.some((message) => message.id === payload.message.id)) {
+            return prev;
+          }
+          return [...prev, payload.message];
+        });
       }
       loadConversations();
     });
@@ -148,7 +208,13 @@ export default function MessagesPage() {
 
   async function handleSend() {
     if (!draft.trim() || !activeConversation?.id) return;
-    await sendMessage(activeConversation.id, draft.trim());
+    setSending(true);
+    const ok = await sendMessage(activeConversation.id, draft.trim());
+    setSending(false);
+    if (!ok) {
+      showToast("Message failed to send. Please try again.", "error");
+      return;
+    }
     setDraft("");
   }
 
@@ -180,13 +246,39 @@ export default function MessagesPage() {
           </div>
 
           <div className="messagesConversationList">
-            {filteredConversations.length === 0 ? (
-              <p className="modalSub">No conversations yet.</p>
+            {loadingConversations ? (
+              Array.from({ length: 6 }).map((_, index) => (
+                <div key={`conversation-skeleton-${index}`} className="messagesConversationItem messagesConversationItemSkeleton" aria-hidden="true">
+                  <div className="messagesConversationAvatarSkeleton" />
+                  <div className="messagesConversationBody">
+                    <div className="productSkeletonLine productSkeletonLineLg" />
+                    <div className="productSkeletonLine productSkeletonLineSm" />
+                    <div className="productSkeletonLine" />
+                  </div>
+                </div>
+              ))
+            ) : conversationError ? (
+              <div className="uiStateCard uiStateCardError">
+                <h3 className="uiStateTitle">Inbox unavailable</h3>
+                <p className="uiStateText">{conversationError}</p>
+                <button type="button" className="uiStateAction" onClick={() => void refreshConversationList()}>
+                  Retry
+                </button>
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="uiStateCard">
+                <h3 className="uiStateTitle">{query.trim() || tab !== "all" ? "No matching conversations" : "No conversations yet"}</h3>
+                <p className="uiStateText">
+                  {query.trim() || tab !== "all"
+                    ? "Try changing your search text or switching back to a different tab."
+                    : "Start a chat from any item page and it will appear here."}
+                </p>
+              </div>
             ) : (
               filteredConversations.map((conversation) => {
                 const otherPerson = conversation.requesterId === user.id ? conversation.owner : conversation.requester;
                 const displayName = otherPerson?.vendor?.storeName || otherPerson?.fullName || otherPerson?.username || "Vendor";
-                const imageId = otherPerson?.profileImageId || otherPerson?.vendor?.profileImageId;
+                const imageUrl = otherPerson?.profileImageUrl || otherPerson?.vendor?.profileImageUrl;
                 const vendorHref = otherPerson?.slug ? `/vendor/${otherPerson.slug}` : null;
 
                 return (
@@ -196,10 +288,10 @@ export default function MessagesPage() {
                   >
                     {vendorHref ? (
                       <Link href={vendorHref} className="messagesAvatarLink" aria-label={`View ${displayName} profile`}>
-                        <Avatar name={displayName} imageId={imageId} size={56} className="messagesAvatar" />
+                        <Avatar name={displayName} imageUrl={imageUrl} size={56} className="messagesAvatar" />
                       </Link>
                     ) : (
-                      <Avatar name={displayName} imageId={imageId} size={56} className="messagesAvatar" />
+                      <Avatar name={displayName} imageUrl={imageUrl} size={56} className="messagesAvatar" />
                     )}
                     <button
                       type="button"
@@ -240,7 +332,7 @@ export default function MessagesPage() {
                   <Link href={`/vendor/${activeOtherPerson.slug}`} className="messagesHeaderProfileLink">
                     <Avatar
                       name={activeOtherPerson?.vendor?.storeName || activeOtherPerson?.fullName || activeOtherPerson?.username || "Vendor"}
-                      imageId={activeOtherPerson?.profileImageId || activeOtherPerson?.vendor?.profileImageId || undefined}
+                      imageUrl={activeOtherPerson?.profileImageUrl || activeOtherPerson?.vendor?.profileImageUrl || undefined}
                       size={46}
                       className="messagesHeaderAvatar"
                     />
@@ -253,7 +345,7 @@ export default function MessagesPage() {
                   <>
                     <Avatar
                       name={activeOtherPerson?.vendor?.storeName || activeOtherPerson?.fullName || activeOtherPerson?.username || "Vendor"}
-                      imageId={activeOtherPerson?.profileImageId || activeOtherPerson?.vendor?.profileImageId || undefined}
+                      imageUrl={activeOtherPerson?.profileImageUrl || activeOtherPerson?.vendor?.profileImageUrl || undefined}
                       size={46}
                       className="messagesHeaderAvatar"
                     />
@@ -266,7 +358,34 @@ export default function MessagesPage() {
               </div>
 
               <div className="messagesThread" ref={threadRef} onScroll={handleThreadScroll}>
-                {messages.map((message) => (
+                {loadingThread
+                  ? Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`thread-skeleton-${index}`}
+                        className={`messagesBubble messagesBubbleSkeleton ${index % 2 === 0 ? "isMine" : ""}`}
+                        aria-hidden="true"
+                      >
+                        <div className="productSkeletonLine productSkeletonLineLg" />
+                        <div className="productSkeletonLine productSkeletonLineSm" />
+                      </div>
+                    ))
+                  : null}
+                {!loadingThread && threadError ? (
+                  <div className="uiStateCard uiStateCardError">
+                    <h3 className="uiStateTitle">Conversation unavailable</h3>
+                    <p className="uiStateText">{threadError}</p>
+                    <button
+                      type="button"
+                      className="uiStateAction"
+                      onClick={() => {
+                        setThreadReloadNonce((value) => value + 1);
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                {!loadingThread && !threadError && messages.map((message) => (
                   <div key={message.id} className={`messagesBubble ${message.senderId === user.id ? "isMine" : ""}`}>
                     <div>{message.body}</div>
                     <div className="messagesBubbleTime">{formatTime(message.createdAt)}</div>
@@ -293,13 +412,14 @@ export default function MessagesPage() {
               <div className="messagesComposer">
                 <Avatar
                   name={user.fullName || user.vendor?.storeName || user.username}
-                  imageId={user.profileImageId || user.vendor?.profileImageId}
+                  imageUrl={user.vendor?.profileImageUrl}
                   size={40}
                   className="messagesComposerAvatar"
                 />
                 <input
                   className="messagesComposerInput"
                   value={draft}
+                  disabled={sending || loadingThread || Boolean(threadError)}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Hi, is this still available?"
                   onKeyDown={(e) => {
@@ -309,7 +429,9 @@ export default function MessagesPage() {
                     }
                   }}
                 />
-                <button className="messagesSendBtn" type="button" onClick={handleSend}>Send</button>
+                <button className="messagesSendBtn" type="button" onClick={handleSend} disabled={sending || loadingThread || Boolean(threadError)}>
+                  {sending ? "Sending..." : "Send"}
+                </button>
               </div>
             </>
           ) : (

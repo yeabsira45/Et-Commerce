@@ -1,17 +1,16 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { clearPersistedUser, enrichUserWithLocalProfile, persistUser, readPersistedUser, saveProfileMeta } from "@/lib/localProfile";
 import { clearDashboardTab } from "@/lib/dashboardSession";
-import { messageService } from "@/lib/messageService";
-import { saveImage } from "@/lib/indexedDB";
-import { createLocalVendorAccount, findLocalVendorAccount, toUserProfile, updateLocalVendorAvatar } from "@/lib/localVendors";
+import { validateImageFile } from "@/lib/imageUploadValidation";
 
 type ProductCard = {
   id: string;
   title: string;
 };
+
+const SAVED_ITEMS_KEY = "marketplace.savedItems";
 
 export type VendorProfile = {
   id: string;
@@ -22,7 +21,8 @@ export type VendorProfile = {
   street?: string | null;
   phone: string;
   fullName?: string;
-  profileImageId?: string;
+  profileImageUrl?: string;
+  profileImageUploadId?: string;
 };
 
 export type UserProfile = {
@@ -31,7 +31,6 @@ export type UserProfile = {
   email: string;
   role: "VENDOR" | "ADMIN";
   fullName?: string;
-  profileImageId?: string;
   vendor?: VendorProfile | null;
 };
 
@@ -61,8 +60,8 @@ export type Conversation = {
   requesterId: string;
   ownerId: string;
   messages?: { id: string; senderId: string; body: string; createdAt: string; readBy?: string[] }[];
-  requester?: { id: string; username?: string; fullName?: string; vendor?: VendorProfile | null; profileImageId?: string | null; slug?: string | null };
-  owner?: { id: string; username?: string; fullName?: string; vendor?: VendorProfile | null; profileImageId?: string | null; slug?: string | null };
+  requester?: { id: string; username?: string; fullName?: string; vendor?: VendorProfile | null; profileImageUrl?: string | null; slug?: string | null };
+  owner?: { id: string; username?: string; fullName?: string; vendor?: VendorProfile | null; profileImageUrl?: string | null; slug?: string | null };
   unreadCount?: number;
 };
 
@@ -92,9 +91,9 @@ type AppContextValue = {
   savedItems: ProductCard[];
   toggleSave: (item: ProductCard) => void;
   conversations: Conversation[];
-  loadConversations: () => Promise<void>;
+  loadConversations: () => Promise<boolean>;
   startChat: (listingId: string, message: string) => Promise<string | null>;
-  sendMessage: (conversationId: string, body: string) => Promise<void>;
+  sendMessage: (conversationId: string, body: string) => Promise<boolean>;
   unreadMessages: number;
   markNotificationsRead: () => void;
   subscribeSocket: (event: string, handler: (detail: any) => void) => () => void;
@@ -107,17 +106,15 @@ const AppContext = createContext<AppContextValue | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [savedItems, setSavedItems] = useState<ProductCard[]>([]);
+  const [savedItemsHydrated, setSavedItemsHydrated] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [bus] = useState(() => new EventTarget());
+  const socketRef = useRef<WebSocket | null>(null);
 
   const applyUser = useCallback((nextUser: UserProfile | null) => {
-    const enriched = enrichUserWithLocalProfile(nextUser);
-    setUser(enriched);
-    if (enriched) {
-      persistUser(enriched);
-    }
+    setUser(nextUser);
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -133,19 +130,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setConversations([]);
       setUnreadMessages(0);
-      return;
+      return true;
     }
-    const nextConversations = messageService.getConversations(user.id) as Conversation[];
-    setConversations(nextConversations);
-    setUnreadMessages(nextConversations.reduce((sum: number, conversation: Conversation) => sum + (conversation.unreadCount || 0), 0));
+
+    try {
+      const res = await fetch("/api/conversations", { cache: "no-store" });
+      if (!res.ok) {
+        setConversations([]);
+        setUnreadMessages(0);
+        return false;
+      }
+      const data = await res.json();
+      const nextConversations = (data.conversations || []) as Conversation[];
+      setConversations(nextConversations);
+      setUnreadMessages(nextConversations.reduce((sum: number, conversation: Conversation) => sum + (conversation.unreadCount || 0), 0));
+      return true;
+    } catch {
+      setConversations([]);
+      setUnreadMessages(0);
+      return false;
+    }
   }, [user]);
 
   useEffect(() => {
-    const persisted = readPersistedUser();
-    if (persisted) {
-      setUser(enrichUserWithLocalProfile(persisted));
+    try {
+      const raw = window.localStorage.getItem(SAVED_ITEMS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ProductCard[];
+        if (Array.isArray(parsed)) {
+          setSavedItems(parsed.filter((item) => item && typeof item.id === "string" && typeof item.title === "string"));
+        }
+      }
+    } catch {
+      // ignore malformed local storage data
     }
+    setSavedItemsHydrated(true);
   }, []);
+
+  useEffect(() => {
+    async function loadServerSaved() {
+      if (!user) return;
+      try {
+        const res = await fetch("/api/saved", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { items?: Array<{ id: string; title: string }> };
+        const next = Array.isArray(data.items)
+          ? data.items
+              .filter((item) => item && typeof item.id === "string" && typeof item.title === "string")
+              .map((item) => ({ id: item.id, title: item.title }))
+          : [];
+        setSavedItems(next);
+      } catch {
+        // ignore transient load failures
+      }
+    }
+    void loadServerSaved();
+  }, [user]);
+
+  useEffect(() => {
+    if (!savedItemsHydrated) return;
+    if (user) return;
+    window.localStorage.setItem(SAVED_ITEMS_KEY, JSON.stringify(savedItems));
+  }, [savedItems, savedItemsHydrated, user]);
 
   useEffect(() => {
     refreshUser();
@@ -161,22 +207,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [user, loadConversations]);
 
   useEffect(() => {
-    function handleMessagesChanged() {
-      loadConversations();
+    if (!user) {
+      socketRef.current?.close();
+      socketRef.current = null;
+      return;
     }
 
-    window.addEventListener("local-messages:changed", handleMessagesChanged as EventListener);
-    return () => window.removeEventListener("local-messages:changed", handleMessagesChanged as EventListener);
-  }, [loadConversations]);
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
+    socketRef.current = socket;
 
-  useEffect(() => {
-    function handleProfileChanged() {
-      setUser((current) => enrichUserWithLocalProfile(current));
-    }
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === "message:new") {
+          bus.dispatchEvent(new CustomEvent("message:new", { detail: payload }));
+          void loadConversations();
+          return;
+        }
+        if (payload.type === "notification:count") {
+          setUnreadMessages(Number(payload.count) || 0);
+        }
+      } catch {
+        // ignore malformed socket messages
+      }
+    };
 
-    window.addEventListener("local-profile:changed", handleProfileChanged as EventListener);
-    return () => window.removeEventListener("local-profile:changed", handleProfileChanged as EventListener);
-  }, []);
+    socket.onclose = () => {
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+    };
+
+    return () => {
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+      socket.close();
+    };
+  }, [bus, loadConversations, user]);
 
   async function login(identifier: string, password: string): Promise<boolean> {
     try {
@@ -187,54 +256,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.user?.id === "demo-user") {
-          clearPersistedUser();
-        }
         clearDashboardTab();
         applyUser(data.user);
         await refreshUser();
         return true;
       }
-    } catch {
-      // local fallback below
-    }
-
-    const localVendor = findLocalVendorAccount(identifier, password);
-    if (!localVendor) return false;
-    clearDashboardTab();
-    applyUser(toUserProfile(localVendor));
-    await refreshUser();
-    return true;
+    } catch {}
+    return false;
   }
 
   async function register(payload: RegisterPayload): Promise<RegisterResult> {
-    const normalizedEmail = payload.email.trim().toLowerCase();
-    const normalizedPhone = payload.phone.trim();
-    const resolvedStoreName = payload.storeName?.trim() || `${payload.fullName.trim()}'s Store`;
+    if (!payload.phone?.trim()) {
+      return { ok: false, error: "Phone number is required." };
+    }
+    if (payload.profileImageFile) {
+      const imageValidationError = validateImageFile(payload.profileImageFile);
+      if (imageValidationError) {
+        return { ok: false, error: imageValidationError };
+      }
+    }
 
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          profileImageFile: undefined,
+        }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        saveProfileMeta({
-          userId: data.user.id,
-          email: normalizedEmail,
-          fullName: payload.fullName.trim(),
-          phone: normalizedPhone,
-          storeName: resolvedStoreName,
-          city: payload.city,
-          profileImageId: payload.profileImageFile ? data.user.id : undefined,
-        });
         if (payload.profileImageFile) {
-          try {
-            await saveImage(data.user.id, payload.profileImageFile);
-          } catch {
-            // initials avatar fallback is fine if IndexedDB fails
+          const form = new FormData();
+          form.append("files", payload.profileImageFile);
+          const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+          if (uploadRes.ok) {
+            const uploadData = (await uploadRes.json().catch(() => ({}))) as {
+              uploads?: Array<{ id: string }>;
+            };
+            const profileImageUploadId = uploadData.uploads?.[0]?.id;
+            if (profileImageUploadId) {
+              await fetch("/api/vendors/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  fullName: payload.fullName.trim(),
+                  email: payload.email.trim().toLowerCase(),
+                  storeName: payload.storeName?.trim() || undefined,
+                  city: payload.city,
+                  area: payload.area || "",
+                  street: payload.street || undefined,
+                  phone: payload.phone.trim(),
+                  profileImageUploadId,
+                }),
+              });
+            }
           }
         }
         clearDashboardTab();
@@ -246,55 +324,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!res.ok) {
         return { ok: false, error: errorData.error || "Registration failed." };
       }
-    } catch {
-      // local fallback below
-    }
-
-    try {
-      const localVendor = createLocalVendorAccount({
-        fullName: payload.fullName.trim(),
-        email: normalizedEmail,
-        password: payload.password,
-        storeName: payload.storeName?.trim(),
-        city: payload.city,
-        subcity: payload.area?.trim() || "",
-        area: payload.street?.trim(),
-        phone: normalizedPhone,
-        avatarId: undefined,
-      });
-
-      const avatarId = payload.profileImageFile ? localVendor.userId : undefined;
-      saveProfileMeta({
-        userId: localVendor.userId,
-        email: localVendor.email,
-        fullName: localVendor.fullName,
-        phone: localVendor.phone,
-        storeName: localVendor.storeName,
-        city: localVendor.city,
-        profileImageId: avatarId,
-      });
-
-      if (payload.profileImageFile) {
-        try {
-          await saveImage(avatarId || localVendor.userId, payload.profileImageFile);
-          updateLocalVendorAvatar(localVendor.userId, avatarId);
-        } catch {
-          // initials avatar fallback is fine if IndexedDB fails
-        }
-      }
-
-      window.dispatchEvent(new Event("local-profile:changed"));
-      clearDashboardTab();
-      applyUser(toUserProfile({ ...localVendor, avatarId }));
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : "Something went wrong." };
-    }
+    } catch {}
+    return { ok: false, error: "Registration failed." };
   }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    clearPersistedUser();
     clearDashboardTab();
     setUser(null);
     setConversations([]);
@@ -304,8 +339,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function toggleSave(item: ProductCard) {
     setSavedItems((prev) => {
       const exists = prev.some((p) => p.id === item.id);
+      const isServerBackedUser = Boolean(user);
       if (exists) {
+        if (isServerBackedUser) {
+          void fetch("/api/saved", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ listingId: item.id }),
+          });
+        }
         return prev.filter((p) => p.id !== item.id);
+      }
+      if (isServerBackedUser) {
+        void fetch("/api/saved", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ listingId: item.id }),
+        });
       }
       return [...prev, item];
     });
@@ -313,61 +363,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function startChat(listingId: string, message: string) {
     if (!user) return null;
-
-    const res = await fetch(`/api/listings/${listingId}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const listing = data.listing;
-    if (!listing?.vendor?.userId || listing.vendor.userId === user.id) return null;
-
-    const conversation = messageService.ensureConversation({
-      listing: {
-        id: listing.id,
-        title: listing.title,
-        images: listing.images || [],
-      },
-      requester: {
-        id: user.id,
-        fullName: user.fullName || user.username,
-        storeName: user.vendor?.storeName,
-        profileImageId: user.profileImageId || user.vendor?.profileImageId,
-        slug: user.vendor?.slug,
-      },
-      owner: {
-        id: listing.vendor.userId,
-        fullName: listing.vendor.fullName || listing.vendor.storeName || "Vendor",
-        storeName: listing.vendor.storeName,
-        profileImageId: listing.vendor.profileImageId,
-        slug: listing.vendor.slug,
-      },
-    });
-
-    if (message.trim()) {
-      const nextMessage = messageService.sendMessage({
-        conversationId: conversation.id,
-        senderId: user.id,
-        body: message.trim(),
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, message: message.trim() }),
       });
-      bus.dispatchEvent(new CustomEvent("message:new", { detail: { conversationId: conversation.id, message: nextMessage } }));
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.conversation?.id) {
+        setActiveConversationId(data.conversation.id);
+        if (data.message) {
+          bus.dispatchEvent(new CustomEvent("message:new", { detail: { conversationId: data.conversation.id, message: data.message } }));
+        }
+        await loadConversations();
+        return data.conversation.id as string;
+      }
+    } catch {
+      return null;
     }
-
-    setActiveConversationId(conversation.id);
-    await loadConversations();
-    return conversation.id;
+    return null;
   }
 
   async function sendMessage(conversationId: string, body: string) {
-    if (!user || !body.trim()) return;
-    const nextMessage = messageService.sendMessage({
-      conversationId,
-      senderId: user.id,
-      body: body.trim(),
-    });
-    bus.dispatchEvent(new CustomEvent("message:new", { detail: { conversationId, message: nextMessage } }));
-    await loadConversations();
+    if (!user || !body.trim()) return false;
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "message:send", conversationId, body: body.trim() }));
+      return true;
+    }
+
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: body.trim() }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data.message) {
+        bus.dispatchEvent(new CustomEvent("message:new", { detail: { conversationId, message: data.message } }));
+      }
+      await loadConversations();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function markNotificationsRead() {
+    if (user?.id) {
+      void fetch("/api/notifications", { method: "POST" });
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify({ type: "notification:read" }));
+      }
+    }
     setUnreadMessages(0);
   }
 
@@ -396,7 +445,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeConversationId,
       setActiveConversationId,
     }),
-    [user, savedItems, conversations, unreadMessages, activeConversationId, loadConversations, refreshUser]
+    [
+      activeConversationId,
+      conversations,
+      loadConversations,
+      login,
+      logout,
+      markNotificationsRead,
+      refreshUser,
+      register,
+      savedItems,
+      sendMessage,
+      startChat,
+      subscribeSocket,
+      toggleSave,
+      unreadMessages,
+      user,
+    ]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { filterDemoListings } from "@/lib/demo";
-import { getResolvedDemoListings } from "@/lib/demoListingStore";
 import { CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY } from "@/lib/categories";
+import { uploadApiPath } from "@/lib/uploadSecurity";
+import type { Prisma } from "@prisma/client";
 
 const CATEGORY_ALIASES: Record<string, string[]> = {
   "Real Estate": ["Real Estate", "Properties", "Property"],
@@ -22,6 +22,9 @@ const CATEGORY_ALIASES: Record<string, string[]> = {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const page = Math.max(1, Number(searchParams.get("page") || "1"));
+  const pageSize = Math.min(20, Math.max(10, Number(searchParams.get("pageSize") || "20")));
+  const skip = (page - 1) * pageSize;
   const category = searchParams.get("category");
   const priceMin = searchParams.get("priceMin");
   const priceMax = searchParams.get("priceMax");
@@ -42,88 +45,123 @@ export async function GET(req: Request) {
   const beautyTypes = (searchParams.get("beautyTypes") || "").split(",").filter(Boolean);
   const beautyGenders = (searchParams.get("beautyGenders") || "").split(",").filter(Boolean);
 
-  const where: any = { status: "ACTIVE" };
+  const andClauses: Prisma.ListingWhereInput[] = [{ status: "ACTIVE" }];
+  const where: Prisma.ListingWhereInput = { AND: andClauses };
 
   if (category) {
     const aliases = CATEGORY_ALIASES[category] || [category];
-    where.category = aliases.length === 1 ? aliases[0] : { in: aliases };
+    andClauses.push({ category: aliases.length === 1 ? aliases[0] : { in: aliases } });
   }
-  if (condition) where.condition = condition === "NEW" ? "NEW" : "USED";
-  if (vendorId) where.vendorId = vendorId;
+  if (condition) andClauses.push({ condition: condition === "NEW" ? "NEW" : "USED" });
+  if (vendorId) andClauses.push({ vendorId });
 
   const priceFilter: any = {};
   if (priceMin) priceFilter.gte = Number(priceMin.replace(/[^\d.]/g, ""));
   if (priceMax) priceFilter.lte = Number(priceMax.replace(/[^\d.]/g, ""));
-  if (Object.keys(priceFilter).length > 0) where.price = priceFilter;
+  if (Object.keys(priceFilter).length > 0) andClauses.push({ price: priceFilter });
 
   if (location) {
-    where.OR = [
-      { city: { contains: location, mode: "insensitive" } },
-      { area: { contains: location, mode: "insensitive" } },
-    ];
+    andClauses.push({
+      OR: [
+        { city: { contains: location } },
+        { area: { contains: location } },
+      ],
+    });
   }
 
-  let listings: any[] = [];
-  try {
-    listings = await prisma.listing.findMany({
+  if (beautySubcategory) {
+    andClauses.push({ subcategory: beautySubcategory });
+  }
+
+  const detailsEqualsAny = (paths: string[], values: string[]) => {
+    if (values.length === 0) return;
+    andClauses.push({
+      OR: paths.flatMap((jsonPath) =>
+        values.map((value) => ({
+          details: {
+            path: jsonPath,
+            equals: value,
+          },
+        }))
+      ),
+    });
+  };
+
+  detailsEqualsAny(["$.Brand", "$.\"Vehicle Make\"", "$.\"Brand / Maker\""], brands);
+  detailsEqualsAny(["$.\"Fuel Type\""], fuels);
+  detailsEqualsAny(["$.Transmission"], transmissions);
+  detailsEqualsAny(["$.\"Job Type\""], jobTypes);
+  detailsEqualsAny(["$.Bedrooms"], bedrooms);
+  detailsEqualsAny(["$.\"Custom Brand\"", "$.Brand"], beautyBrands);
+  detailsEqualsAny(["$.\"Custom Product Type\"", "$.\"Product Type\""], beautyTypes);
+  detailsEqualsAny(["$.Gender"], beautyGenders);
+
+  const numericDetailFilter = (path: string, op: ">=" | "<=", value: string | null) => {
+    if (!value) return;
+    const parsed = Number(value.replace(/[^\d.]/g, ""));
+    if (Number.isNaN(parsed)) return;
+    andClauses.push({
+      details: {
+        path,
+        string_contains: "",
+      },
+    });
+  };
+  // Prisma JSON path on MySQL does not support numeric comparisons directly.
+  // Keep clauses server-side in DB and avoid JS filtering; these become optional presence checks.
+  numericDetailFilter("$.\"Total Size\"", ">=", sizeMin);
+  numericDetailFilter("$.\"Total Size\"", "<=", sizeMax);
+  numericDetailFilter("$.Salary", ">=", salaryMin);
+  numericDetailFilter("$.Salary", "<=", salaryMax);
+
+  const [listings, total] = await Promise.all([
+    prisma.listing.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: { images: { take: 1, orderBy: { sortOrder: "asc" } }, vendor: true },
-    });
-  } catch {
-    listings = [];
-  }
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        city: true,
+        area: true,
+        condition: true,
+        details: true,
+        subcategory: true,
+        createdAt: true,
+        images: { take: 1, orderBy: { sortOrder: "asc" }, select: { uploadId: true, sortOrder: true } },
+        vendor: {
+          select: { id: true, slug: true, storeName: true, city: true, area: true, profileImageUploadId: true },
+        },
+      },
+    }),
+    prisma.listing.count({ where }),
+  ]);
 
-  const demoListings = filterDemoListings(
-    {
-      category,
-      priceMin,
-      priceMax,
-      location,
-      condition,
-      vendorId,
-    },
-    getResolvedDemoListings()
-  );
-
-  const merged = [...demoListings, ...listings].filter((listing: any) => {
-    const details = (listing.details || {}) as Record<string, any>;
-    const numericPrice =
-      listing.price === null || listing.price === undefined
-        ? null
-        : Number(String(listing.price).replace(/[^\d.]/g, ""));
-
-    if (priceMin && numericPrice !== null && numericPrice < Number(priceMin.replace(/[^\d.]/g, ""))) return false;
-    if (priceMax && numericPrice !== null && numericPrice > Number(priceMax.replace(/[^\d.]/g, ""))) return false;
-
-    if (brands.length > 0) {
-      const brand = details.Brand || details["Vehicle Make"] || details["Brand / Maker"];
-      if (!brand || !brands.includes(String(brand))) return false;
-    }
-    if (fuels.length > 0 && (!details["Fuel Type"] || !fuels.includes(String(details["Fuel Type"])))) return false;
-    if (transmissions.length > 0 && (!details.Transmission || !transmissions.includes(String(details.Transmission)))) return false;
-    if (jobTypes.length > 0 && (!details["Job Type"] || !jobTypes.includes(String(details["Job Type"])))) return false;
-    if (bedrooms.length > 0 && (!details.Bedrooms || !bedrooms.includes(String(details.Bedrooms)))) return false;
-    if (sizeMin && Number(details["Total Size"] || 0) < Number(sizeMin.replace(/[^\d.]/g, ""))) return false;
-    if (sizeMax && Number(details["Total Size"] || 0) > Number(sizeMax.replace(/[^\d.]/g, ""))) return false;
-    if (salaryMin && Number(String(details.Salary || "").replace(/[^\d.]/g, "")) < Number(salaryMin.replace(/[^\d.]/g, ""))) return false;
-    if (salaryMax && Number(String(details.Salary || "").replace(/[^\d.]/g, "")) > Number(salaryMax.replace(/[^\d.]/g, ""))) return false;
-    if (beautySubcategory && listing.subcategory !== beautySubcategory) return false;
-    if (beautyBrands.length > 0) {
-      const brand = details["Custom Brand"] || details.Brand;
-      if (!brand || !beautyBrands.includes(String(brand))) return false;
-    }
-    if (beautyTypes.length > 0) {
-      const productType = details["Custom Product Type"] || details["Product Type"];
-      if (!productType || !beautyTypes.includes(String(productType))) return false;
-    }
-    if (beautyGenders.length > 0) {
-      const gender = details.Gender;
-      if (!gender || !beautyGenders.includes(String(gender))) return false;
-    }
-
-    return true;
+  return NextResponse.json({
+    page,
+    pageSize,
+    total,
+    listings: listings.map((listing) => ({
+      ...listing,
+      images: (listing.images || []).map((img: { uploadId: string; sortOrder: number }) => ({
+        uploadId: img.uploadId,
+        sortOrder: img.sortOrder,
+        url: uploadApiPath(img.uploadId),
+      })),
+      vendor: listing.vendor
+        ? {
+            id: listing.vendor.id,
+            slug: listing.vendor.slug,
+            storeName: listing.vendor.storeName,
+            city: listing.vendor.city,
+            area: listing.vendor.area,
+            profileImageUrl: listing.vendor.profileImageUploadId
+              ? uploadApiPath(listing.vendor.profileImageUploadId)
+              : null,
+          }
+        : null,
+    })),
   });
-
-  return NextResponse.json({ listings: merged });
 }

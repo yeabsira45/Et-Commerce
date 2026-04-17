@@ -103,3 +103,10 @@ export function normalizeConstructionRepairSubcategory(sub: string | null | unde
   if (!sub) return "";
   return CONSTRUCTION_REPAIR_SUBCATEGORY_LEGACY_MAP[sub] || sub;
 }
+
+/** Subcategories that use the residential property detail + validation schema. */
+export const REAL_ESTATE_RESIDENTIAL_SUBCATEGORIES = new Set([
+  "Apartment or House for Rent",
+  "Apartment or House for Sale",
+  "Short-Term Rentals",
+]);
