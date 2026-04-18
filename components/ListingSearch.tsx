@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { categories } from "./categories";
 import { formatEtbPrice, normalizePriceInput } from "@/lib/format";
 import { getListingPricingLabel } from "@/lib/listingPricing";
@@ -68,6 +69,15 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Autocomplete states
+  const [autocompleteQuery, setAutocompleteQuery] = useState("");
+  const [autocompleteResults, setAutocompleteResults] = useState<Array<{ id: string; title: string; category: string; subcategory: string }>>([]);
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const categoryOptions = useMemo(() => categories.map((c) => c.name), []);
 
   const hasActiveFilters = Boolean(
@@ -90,6 +100,49 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
       beautyTypes.length ||
       beautyGenders.length
   );
+
+  // Autocomplete effect with debounce
+  useEffect(() => {
+    if (autocompleteQuery.length < 1) {
+      setAutocompleteResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setAutocompleteLoading(true);
+      try {
+        const response = await fetch(`/api/listings/autocomplete?q=${encodeURIComponent(autocompleteQuery)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setAutocompleteResults(data);
+          setShowDropdown(data.length > 0);
+        } else {
+          setAutocompleteResults([]);
+          setShowDropdown(false);
+        }
+      } catch (error) {
+        console.error("Autocomplete fetch error:", error);
+        setAutocompleteResults([]);
+        setShowDropdown(false);
+      } finally {
+        setAutocompleteLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [autocompleteQuery]);
+
+  // Click outside to hide dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const runSearch = useCallback(async () => {
     setLoading(true);
@@ -183,17 +236,44 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
       {title ? <h2 className="searchTitle">{title}</h2> : null}
       <div className="searchFilters">
         <input
+          ref={inputRef}
           className="searchInput"
           placeholder="Search listings..."
           value={activeQuery}
           onChange={(e) => {
+            const value = e.target.value;
             if (onQueryChange) {
-              onQueryChange(e.target.value);
+              onQueryChange(value);
             } else {
-              setInternalQuery(e.target.value);
+              setInternalQuery(value);
+            }
+            setAutocompleteQuery(value);
+            if (value.length === 0) {
+              setShowDropdown(false);
             }
           }}
         />
+        {showDropdown && (
+          <div className="autocompleteDropdown">
+            {autocompleteLoading ? (
+              <div className="autocompleteItem">Searching...</div>
+            ) : (
+              autocompleteResults.map((item) => (
+                <div
+                  key={item.id}
+                  className="autocompleteItem"
+                  onClick={() => {
+                    router.push(`/item/${item.id}`);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <div className="autocompleteTitle">{item.title}</div>
+                  <div className="autocompleteCategory">{item.category} - {item.subcategory}</div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
         <select className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">All categories</option>
           {categoryOptions.map((name) => (

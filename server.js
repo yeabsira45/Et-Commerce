@@ -190,8 +190,8 @@ app.prepare().then(() => {
     }
   });
 
-  server.listen(process.env.PORT || 3000, (err) => {
+  server.listen(process.env.PORT || process.argv[2] || 3000, (err) => {
     if (err) throw err;
-    console.log("> Ready on http://localhost:3000");
+    console.log(`> Ready on http://localhost:${process.env.PORT || process.argv[2] || 3000}`);
   });
 });
