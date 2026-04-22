@@ -4,12 +4,20 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { hydrateStoredListingDetails } from "@/lib/listings/listingDetailsHydrate";
 import { listingRepositoryPatchListing, ListingPersistError } from "@/lib/listings/listingRepository";
-import { parseUploadIdFromValue, uploadApiPath } from "@/lib/uploadSecurity";
+import { uploadApiPath } from "@/lib/uploadSecurity";
 import { invalidateUploadMetaCacheMany } from "@/lib/uploadMetaCache";
 
 type Params = { params: { id: string } };
 
 const LISTING_STATUS_SET = new Set<ListingStatus>(["ACTIVE", "SOLD", "ARCHIVED"]);
+
+function extractUploadIdFromImageInput(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const url = typeof (value as { url?: unknown }).url === "string" ? (value as { url: string }).url.trim() : "";
+  if (!url) return null;
+  const match = url.match(/\/api\/uploads\/([a-z0-9]+)(?:\?.*)?$/i);
+  return match?.[1] || null;
+}
 
 function parseListingStatusPatch(value: unknown): ListingStatus | undefined {
   if (value === undefined) return undefined;
@@ -142,8 +150,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
     if (Array.isArray(body.images)) {
       const uploadIds = body.images
-        .map((value: unknown) => parseUploadIdFromValue(value))
-        .filter((id: string | null | undefined): id is string => Boolean(id));
+        .map((value: unknown) => extractUploadIdFromImageInput(value))
+        .filter((id: string | null): id is string => Boolean(id));
+
+      // Preserve existing images unless the new payload contains valid upload ids.
       if (uploadIds.length > 0) {
         const ownedUploads = await prisma.upload.findMany({
           where: { id: { in: uploadIds }, ownerUserId: user.id },
@@ -152,17 +162,18 @@ export async function PATCH(req: Request, { params }: Params) {
         if (ownedUploads.length !== uploadIds.length) {
           return NextResponse.json({ error: "One or more images are not owned by your account." }, { status: 403 });
         }
-      }
 
-      await prisma.image.deleteMany({ where: { listingId: params.id } });
-      if (uploadIds.length > 0) {
-        await prisma.image.createMany({
-          data: uploadIds.map((uploadId: string, index: number) => ({
-            listingId: params.id,
-            uploadId,
-            sortOrder: index,
-          })),
-        });
+        await prisma.$transaction([
+          prisma.image.deleteMany({ where: { listingId: params.id } }),
+          prisma.image.createMany({
+            data: uploadIds.map((uploadId: string, index: number) => ({
+              listingId: params.id,
+              uploadId,
+              sortOrder: index,
+            })),
+          }),
+        ]);
+
         await prisma.upload.updateMany({
           where: { id: { in: uploadIds }, ownerUserId: user.id },
           data: {

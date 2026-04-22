@@ -1835,12 +1835,12 @@ select {
 
 .itemLightboxWatermark span {
   align-self: center;
-  font-size: clamp(14px, 4vw, 34px);
+  font-size: clamp(12px, 3.2vw, 28px);
   font-weight: 900;
   letter-spacing: 0.04em;
   line-height: 1;
   white-space: nowrap;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.26);
   text-shadow:
     0 2px 8px rgba(2, 6, 23, 0.55),
     0 0 1px rgba(2, 6, 23, 0.75);
@@ -2832,6 +2832,18 @@ select {
   gap: 4px;
 }
 
+.adminRowActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adminRowActions .modalPrimary,
+.adminRowActions .modalSecondary {
+  min-height: 36px;
+}
+
 @media (max-width: 900px) {
   .itemLayout {
     grid-template-columns: 1fr;
@@ -2851,6 +2863,25 @@ select {
 }
 
 @media (max-width: 640px) {
+  .topbarInner {
+    height: auto;
+    min-height: 64px;
+    padding: 8px 0;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .topActions {
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 62%;
+  }
+
+  .headerTooltip {
+    display: none;
+  }
+
   .modalGrid {
     grid-template-columns: 1fr;
   }
@@ -2871,6 +2902,27 @@ select {
   .searchBar {
     grid-template-columns: 1fr;
   }
+
+  .searchFilters {
+    gap: 8px;
+  }
+
+  .searchSection .searchInput,
+  .searchSection .select,
+  .searchSection .searchGo {
+    height: 46px;
+    font-size: 14px;
+  }
+
+  .searchSection .searchInput,
+  .searchSection .select {
+    padding: 0 12px;
+  }
+
+  .searchSection .searchGo {
+    width: 100%;
+  }
+
   .topActions {
     gap: 8px;
   }
@@ -2897,6 +2949,16 @@ select {
   .footerColumns {
     grid-template-columns: 1fr;
   }
+
+  .adminRowActions {
+    width: 100%;
+  }
+
+  .adminRowActions .modalPrimary,
+  .adminRowActions .modalSecondary {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 480px) {
@@ -2909,7 +2971,23 @@ select {
   }
 
   .topActions {
-    gap: 6px;
+    max-width: 70%;
+    gap: 5px;
+  }
+
+  .iconBtn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .pillBtn {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .vendorBtn {
+    display: none;
   }
 
   .messagesConversationRow {

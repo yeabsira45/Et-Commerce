@@ -71,7 +71,7 @@ export default function HomePage() {
     let alive = true;
     async function loadCategoryCounts() {
       try {
-        const res = await fetch("/api/categories/counts", { cache: "no-store" });
+        const res = await fetch("/api/categories/counts");
         if (!res.ok) return;
         const data = (await res.json().catch(() => ({}))) as { counts?: Record<string, number> };
         if (!alive) return;

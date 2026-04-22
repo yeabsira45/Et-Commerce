@@ -112,6 +112,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [bus] = useState(() => new EventTarget());
   const socketRef = useRef<WebSocket | null>(null);
+  const conversationRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const conversationRefreshInFlightRef = useRef(false);
 
   const applyUser = useCallback((nextUser: UserProfile | null) => {
     setUser(nextUser);
@@ -151,6 +153,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false;
     }
   }, [user]);
+
+  const scheduleConversationsRefresh = useCallback((delayMs = 220) => {
+    if (!user) return;
+    if (conversationRefreshTimerRef.current) return;
+    conversationRefreshTimerRef.current = setTimeout(() => {
+      conversationRefreshTimerRef.current = null;
+      if (conversationRefreshInFlightRef.current) return;
+      conversationRefreshInFlightRef.current = true;
+      void loadConversations().finally(() => {
+        conversationRefreshInFlightRef.current = false;
+      });
+    }, delayMs);
+  }, [loadConversations, user]);
+
+  useEffect(() => {
+    return () => {
+      if (conversationRefreshTimerRef.current) {
+        clearTimeout(conversationRefreshTimerRef.current);
+        conversationRefreshTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -222,7 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const payload = JSON.parse(event.data);
         if (payload.type === "message:new") {
           bus.dispatchEvent(new CustomEvent("message:new", { detail: payload }));
-          void loadConversations();
+          scheduleConversationsRefresh();
           return;
         }
         if (payload.type === "notification:count") {
@@ -245,7 +269,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       socket.close();
     };
-  }, [bus, loadConversations, user]);
+  }, [bus, scheduleConversationsRefresh, user]);
 
   const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
     try {
@@ -376,14 +400,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data.message) {
           bus.dispatchEvent(new CustomEvent("message:new", { detail: { conversationId: data.conversation.id, message: data.message } }));
         }
-        await loadConversations();
+        scheduleConversationsRefresh(0);
         return data.conversation.id as string;
       }
     } catch {
       return null;
     }
     return null;
-  }, [user, setActiveConversationId, bus, loadConversations]);
+  }, [user, setActiveConversationId, bus, scheduleConversationsRefresh]);
 
   const sendMessage = useCallback(async (conversationId: string, body: string) => {
     if (!user || !body.trim()) return false;
@@ -403,12 +427,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (data.message) {
         bus.dispatchEvent(new CustomEvent("message:new", { detail: { conversationId, message: data.message } }));
       }
-      await loadConversations();
+      scheduleConversationsRefresh(0);
       return true;
     } catch {
       return false;
     }
-  }, [user, socketRef, bus, loadConversations]);
+  }, [user, socketRef, bus, scheduleConversationsRefresh]);
 
   const markNotificationsRead = useCallback(() => {
     if (user?.id) {

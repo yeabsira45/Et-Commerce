@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 const REGIONS = [
   { name: "Afar", flag: "/flags/afar.webp", colors: ["#FFD700", "#DA121A"] },
@@ -33,37 +34,37 @@ export function Footer() {
         <div className="footerColumns">
           <div className="footerCol">
             <h3 className="footerHeading">About us</h3>
-            <a href="#" className="footerLink">
+            <Link className="footerLink" href="/about">
               About ET-Commerce Classifieds
-            </a>
-            <a href="#" className="footerLink">
+            </Link>
+            <Link className="footerLink" href="/terms">
               Terms &amp; Conditions
-            </a>
-            <a href="#" className="footerLink">
+            </Link>
+            <Link className="footerLink" href="/privacy">
               Privacy Policy
-            </a>
-            <a href="#" className="footerLink">
+            </Link>
+            <Link className="footerLink" href="/cookies">
               Cookie Policy
-            </a>
-            <a href="#" className="footerLink">
+            </Link>
+            <Link className="footerLink" href="/copyright">
               Copyright Infringement Policy
-            </a>
+            </Link>
           </div>
 
           <div className="footerCol">
             <h3 className="footerHeading">Support</h3>
-            <a href="mailto:support@et-commerce.com" className="footerLink">
-              support@et-commerce.com
+            <a href="mailto:support@commerceet.com" className="footerLink">
+              support@commerceet.com
             </a>
-            <a href="#" className="footerLink">
+            <Link className="footerLink" href="/safety">
               Safety tips
-            </a>
-            <a href="#" className="footerLink">
+            </Link>
+            <Link className="footerLink" href="/contact">
               Contact us
-            </a>
-            <a href="#" className="footerLink">
+            </Link>
+            <Link className="footerLink" href="/faq">
               FAQ
-            </a>
+            </Link>
           </div>
 
           <div className="footerCol">
@@ -78,25 +79,25 @@ export function Footer() {
 
           <div className="footerCol">
             <h3 className="footerHeading">Our resources</h3>
-            <a href="#" className="footerLink">
+            <a className="footerLink" href="https://facebook.com" target="_blank" rel="noopener noreferrer">
               Our Facebook
             </a>
-            <a href="#" className="footerLink">
+            <a className="footerLink" href="https://instagram.com" target="_blank" rel="noopener noreferrer">
               Our Instagram
             </a>
-            <a href="#" className="footerLink">
+            <a className="footerLink" href="https://youtube.com" target="_blank" rel="noopener noreferrer">
               Our YouTube
             </a>
-            <a href="#" className="footerLink">
+            <a className="footerLink" href="https://x.com" target="_blank" rel="noopener noreferrer">
               Our Twitter
             </a>
           </div>
 
           <div className="footerCol">
             <h3 className="footerHeading">Hot links</h3>
-            <a href="#" className="footerLink">
+            <Link className="footerLink" href="/">
               ET-Commerce
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -123,4 +124,3 @@ export function Footer() {
     </footer>
   );
 }
-

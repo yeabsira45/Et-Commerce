@@ -80,6 +80,7 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
 
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (query === undefined) {
@@ -149,7 +150,7 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
   // Click outside to hide dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+      if (autocompleteWrapRef.current && !autocompleteWrapRef.current.contains(event.target as Node)) {
         setShowDropdown(false);
       }
     };
@@ -161,7 +162,9 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
+    const effectiveQuery = (query !== undefined ? query : internalQuery).trim();
     if (category) params.set("category", category);
+    if (effectiveQuery) params.set("q", effectiveQuery);
     if (priceMin) params.set("priceMin", priceMin);
     if (priceMax) params.set("priceMax", priceMax);
     if (location) params.set("location", location);
@@ -216,6 +219,8 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
     sizeMax,
     sizeMin,
     transmissions,
+    query,
+    internalQuery,
   ]);
 
   useEffect(() => {
@@ -250,45 +255,47 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
     <section className="searchSection">
       {title ? <h2 className="searchTitle">{title}</h2> : null}
       <div className="searchFilters">
-        <input
-          ref={inputRef}
-          className="searchInput"
-          placeholder="Search listings..."
-          value={activeQuery}
-          onChange={(e) => {
-            const value = e.target.value;
-            if (onQueryChange) {
-              onQueryChange(value);
-            } else {
-              setInternalQuery(value);
-            }
-            setAutocompleteQuery(value);
-            if (value.length === 0) {
-              setShowDropdown(false);
-            }
-          }}
-        />
-        {showDropdown && (
-          <div className="autocompleteDropdown">
-            {autocompleteLoading ? (
-              <div className="autocompleteItem">Searching...</div>
-            ) : (
-              autocompleteResults.map((item) => (
-                <div
-                  key={item.id}
-                  className="autocompleteItem"
-                  onClick={() => {
-                    router.push(`/item/${item.id}`);
-                    setShowDropdown(false);
-                  }}
-                >
-                  <div className="autocompleteTitle">{item.title}</div>
-                  <div className="autocompleteCategory">{item.category} - {item.subcategory}</div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+        <div ref={autocompleteWrapRef} style={{ position: "relative" }}>
+          <input
+            ref={inputRef}
+            className="searchInput"
+            placeholder="Search listings..."
+            value={activeQuery}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (onQueryChange) {
+                onQueryChange(value);
+              } else {
+                setInternalQuery(value);
+              }
+              setAutocompleteQuery(value);
+              if (value.length === 0) {
+                setShowDropdown(false);
+              }
+            }}
+          />
+          {showDropdown && (
+            <div className="autocompleteDropdown">
+              {autocompleteLoading ? (
+                <div className="autocompleteItem">Searching...</div>
+              ) : (
+                autocompleteResults.map((item) => (
+                  <div
+                    key={item.id}
+                    className="autocompleteItem"
+                    onClick={() => {
+                      router.push(`/item/${item.id}`);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <div className="autocompleteTitle">{item.title}</div>
+                    <div className="autocompleteCategory">{item.category} - {item.subcategory}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
         <select className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">All categories</option>
           {categoryOptions.map((name) => (

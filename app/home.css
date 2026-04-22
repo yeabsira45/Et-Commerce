@@ -790,16 +790,71 @@
 }
 
 @media (max-width: 640px) {
+  .topbarInner {
+    height: auto;
+    min-height: 64px;
+    padding: 8px 0;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
   .searchBar {
     grid-template-columns: 1fr;
   }
-  .topActions {
+
+  .searchFilters {
     gap: 8px;
   }
+
+  .searchSection .searchInput,
+  .searchSection .select,
+  .searchSection .searchGo {
+    height: 46px;
+    font-size: 14px;
+  }
+
+  .searchSection .searchInput,
+  .searchSection .select {
+    padding: 0 12px;
+  }
+
+  .searchSection .searchGo {
+    width: 100%;
+  }
+
+  .topActions {
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 62%;
+  }
+
   .trendingRow {
     grid-template-columns: 1fr;
   }
   .productGrid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .iconBtn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .pillBtn {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .vendorBtn {
+    display: none;
+  }
+
+  .topActions {
+    max-width: 70%;
+    gap: 5px;
   }
 }

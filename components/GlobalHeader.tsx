@@ -2,12 +2,20 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "./AppContext";
 import { VendorPanel } from "./VendorPanel";
-import { AuthModal } from "./AuthModal";
-import { NotificationsModal } from "./NotificationsModal";
 import { Avatar } from "./Avatar";
+
+const AuthModal = dynamic(() => import("./AuthModal").then((mod) => mod.AuthModal), {
+  ssr: false,
+});
+
+const NotificationsModal = dynamic(
+  () => import("./NotificationsModal").then((mod) => mod.NotificationsModal),
+  { ssr: false }
+);
 
 function Icon({ kind }: { kind: "bookmark" | "chat" | "bell" | "user" }) {
   const common = {

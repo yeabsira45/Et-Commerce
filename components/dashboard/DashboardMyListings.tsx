@@ -14,6 +14,8 @@ export type DashListing = {
   id: string;
   title: string;
   status: string;
+  moderationState?: "PENDING" | "APPROVED" | "REJECTED";
+  moderationReason?: string | null;
   price?: number | string | null;
   city: string;
   area: string;
@@ -26,6 +28,15 @@ function priceToNumber(price: DashListing["price"]): number | null {
   if (typeof price === "number" && !Number.isNaN(price)) return price;
   const n = Number(String(price).replace(/[^\d.]/g, ""));
   return Number.isNaN(n) ? null : n;
+}
+
+function moderationCopy(listing: DashListing): string | null {
+  if (listing.moderationState === "PENDING") return "Pending review";
+  if (listing.moderationState === "REJECTED") {
+    return listing.moderationReason ? `Rejected - ${listing.moderationReason}` : "Rejected";
+  }
+  if (listing.moderationState === "APPROVED") return "Approved";
+  return null;
 }
 
 export function DashboardMyListings() {
@@ -73,8 +84,8 @@ export function DashboardMyListings() {
       showToast(dashboardToast.imageReadFailed, "error");
       return;
     }
-    const uploadPayload = (await uploadRes.json().catch(() => ({}))) as { urls?: string[] };
-    const nextUrl = uploadPayload.urls?.[0];
+    const uploadPayload = (await uploadRes.json().catch(() => ({}))) as { uploads?: Array<{ id: string; url: string }> };
+    const nextUrl = uploadPayload.uploads?.[0]?.url;
     if (!nextUrl) {
       showToast(dashboardToast.imageReadFailed, "error");
       return;
@@ -151,6 +162,7 @@ export function DashboardMyListings() {
           {listings.map((listing) => {
             const thumb = listing.images?.[0]?.url;
             const p = priceToNumber(listing.price);
+            const moderationText = moderationCopy(listing);
             return (
               <li key={listing.id} className="modalListItem">
                 {editingId === listing.id ? (
@@ -211,7 +223,7 @@ export function DashboardMyListings() {
                         />
                       </label>
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div className="adminRowActions">
                       <button type="button" className="modalPrimary" onClick={() => saveEdit(listing.id)}>
                         Save
                       </button>
@@ -234,10 +246,15 @@ export function DashboardMyListings() {
                         <div className="modalThreadMeta">
                           {listing.city}, {listing.area} — {listing.status}
                         </div>
+                        {moderationText ? (
+                          <div className="modalThreadMeta">
+                            <strong>{moderationText}</strong>
+                          </div>
+                        ) : null}
                         <div className="modalThreadMeta">{formatEtbPrice(p)}</div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                    <div className="adminRowActions" style={{ marginTop: 6 }}>
                       <button
                         type="button"
                         className="modalSecondary"

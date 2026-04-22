@@ -12,7 +12,7 @@ export async function GET() {
     }
 
     await sendEmail({
-      to: "yourgmail@gmail.com",
+      to: "support@commerceet.com",
       subject: "Test Email",
       html: "<h1>It works!</h1>",
     });

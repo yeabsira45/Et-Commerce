@@ -69,31 +69,42 @@ export default function NotFound() {
           flexWrap:"wrap"
         }}>
 
-          <Link href="/">
-            <button style={{
-              padding:"12px 26px",
-              background:"#000",
-              color:"#fff",
-              border:"none",
-              borderRadius:"8px",
-              cursor:"pointer",
-              fontWeight:"600"
-            }}>
-              Go Back Home
-            </button>
+          <Link
+            href="/"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "12px 26px",
+              background: "#000",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "600",
+              textDecoration: "none",
+            }}
+          >
+            Go Back Home
           </Link>
 
-          <Link href="/shop">
-            <button style={{
-              padding:"12px 26px",
-              background:"#f5f5f5",
-              border:"1px solid #ddd",
-              borderRadius:"8px",
-              cursor:"pointer",
-              fontWeight:"600"
-            }}>
-              Browse Products
-            </button>
+          <Link
+            href="/search"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "12px 26px",
+              background: "#f5f5f5",
+              border: "1px solid #ddd",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "600",
+              textDecoration: "none",
+              color: "#111",
+            }}
+          >
+            Browse Products
           </Link>
 
         </div>

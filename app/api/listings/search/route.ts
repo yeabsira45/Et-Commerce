@@ -63,6 +63,7 @@ export async function GET(req: Request) {
   const page = Math.max(1, Number(searchParams.get("page") || "1"));
   const pageSize = Math.min(20, Math.max(10, Number(searchParams.get("pageSize") || "20")));
   const skip = (page - 1) * pageSize;
+  const q = (searchParams.get("q") || "").trim();
   const category = searchParams.get("category");
   const subcategory = searchParams.get("subcategory");
   const priceMin = searchParams.get("priceMin");
@@ -111,6 +112,17 @@ export async function GET(req: Request) {
       OR: [
         { city: { contains: location } },
         { area: { contains: location } },
+      ],
+    });
+  }
+
+  if (q) {
+    andClauses.push({
+      OR: [
+        { title: { contains: q } },
+        { description: { contains: q } },
+        { category: { contains: q } },
+        { subcategory: { contains: q } },
       ],
     });
   }

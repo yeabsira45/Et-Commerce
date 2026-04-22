@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import { formatEtbPrice, normalizePriceInput } from "@/lib/format";
 import { canBanUsers, canModifyListing } from "@/lib/dashboardPermissions";
@@ -39,6 +39,7 @@ type UserSort = "username" | "email";
 type ListingSort = "title" | "price_desc";
 
 const PAGE_SIZE = 8;
+type AdminPageMeta = { page: number; pageSize: number; total: number; totalPages: number };
 
 function PaginationBar({
   page,
@@ -74,6 +75,8 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [listings, setListings] = useState<AdminListingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userMeta, setUserMeta] = useState<AdminPageMeta>({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
+  const [listingMeta, setListingMeta] = useState<AdminPageMeta>({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
   const [editListingId, setEditListingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editPrice, setEditPrice] = useState("");
@@ -95,7 +98,16 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/snapshot");
+    const params = new URLSearchParams();
+    params.set("userPage", String(userPage));
+    params.set("listingPage", String(listingPage));
+    params.set("pageSize", String(PAGE_SIZE));
+    params.set("userSort", userSort);
+    params.set("listingSort", listingSort);
+    if (userQuery.trim()) params.set("userQuery", userQuery.trim());
+    if (listingQuery.trim()) params.set("listingQuery", listingQuery.trim());
+
+    const res = await fetch(`/api/admin/snapshot?${params.toString()}`, { cache: "no-store" });
     if (!res.ok) {
       setLoading(false);
       showToast(dashboardToast.adminLoadFailed, "error");
@@ -104,8 +116,10 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
     const data = await res.json();
     setUsers(data.users || []);
     setListings(data.listings || []);
+    setUserMeta(data.userMeta || { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
+    setListingMeta(data.listingMeta || { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
     setLoading(false);
-  }, [showToast]);
+  }, [listingPage, listingQuery, listingSort, showToast, userPage, userQuery, userSort]);
 
   useEffect(() => {
     load();
@@ -131,66 +145,6 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
     return () => window.cancelAnimationFrame(t);
   }, [editUserId]);
 
-  const filteredUsers = useMemo(() => {
-    const q = userQuery.trim().toLowerCase();
-    let rows = !q
-      ? users
-      : users.filter(
-          (u) =>
-            u.username.toLowerCase().includes(q) ||
-            u.email.toLowerCase().includes(q) ||
-            (u.vendor?.storeName || "").toLowerCase().includes(q)
-        );
-    rows = [...rows].sort((a, b) => {
-      if (userSort === "email") return a.email.localeCompare(b.email);
-      return a.username.localeCompare(b.username);
-    });
-    return rows;
-  }, [users, userQuery, userSort]);
-
-  const filteredListings = useMemo(() => {
-    const q = listingQuery.trim().toLowerCase();
-    let rows = !q
-      ? listings
-      : listings.filter(
-          (l) =>
-            l.title.toLowerCase().includes(q) ||
-            l.city.toLowerCase().includes(q) ||
-            l.area.toLowerCase().includes(q) ||
-            (l.ownerId || "").toLowerCase().includes(q)
-        );
-    rows = [...rows].sort((a, b) => {
-      if (listingSort === "price_desc") {
-        const pa = priceNum(a.price) ?? 0;
-        const pb = priceNum(b.price) ?? 0;
-        return pb - pa;
-      }
-      return a.title.localeCompare(b.title);
-    });
-    return rows;
-  }, [listings, listingQuery, listingSort]);
-
-  const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const listingTotalPages = Math.max(1, Math.ceil(filteredListings.length / PAGE_SIZE));
-
-  const pagedUsers = useMemo(() => {
-    const start = (userPage - 1) * PAGE_SIZE;
-    return filteredUsers.slice(start, start + PAGE_SIZE);
-  }, [filteredUsers, userPage]);
-
-  const pagedListings = useMemo(() => {
-    const start = (listingPage - 1) * PAGE_SIZE;
-    return filteredListings.slice(start, start + PAGE_SIZE);
-  }, [filteredListings, listingPage]);
-
-  useEffect(() => {
-    if (userPage > userTotalPages) setUserPage(userTotalPages);
-  }, [userPage, userTotalPages]);
-
-  useEffect(() => {
-    if (listingPage > listingTotalPages) setListingPage(listingTotalPages);
-  }, [listingPage, listingTotalPages]);
-
   async function applyImageFile(file: File) {
     const validationError = validateImageFile(file);
     if (validationError) {
@@ -205,8 +159,8 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
         showToast(dashboardToast.imageReadFailed, "error");
         return;
       }
-      const uploadPayload = (await uploadRes.json().catch(() => ({}))) as { urls?: string[] };
-      const nextUrl = uploadPayload.urls?.[0];
+      const uploadPayload = (await uploadRes.json().catch(() => ({}))) as { uploads?: Array<{ id: string; url: string }> };
+      const nextUrl = uploadPayload.uploads?.[0]?.url;
       if (!nextUrl) {
         showToast(dashboardToast.imageReadFailed, "error");
         return;
@@ -350,11 +304,11 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
       <PaginationBar
         idPrefix="Users"
         page={userPage}
-        totalPages={userTotalPages}
+        totalPages={userMeta.totalPages}
         onPrev={() => setUserPage((p) => Math.max(1, p - 1))}
-        onNext={() => setUserPage((p) => Math.min(userTotalPages, p + 1))}
+        onNext={() => setUserPage((p) => Math.min(userMeta.totalPages, p + 1))}
       />
-      {pagedUsers.map((u) => (
+      {users.map((u) => (
         <div key={u.id} className="adminUserRow">
           {editUserId === u.id ? (
             <div style={{ display: "grid", gap: 8, width: "100%" }}>
@@ -449,11 +403,11 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
       <PaginationBar
         idPrefix="Listings"
         page={listingPage}
-        totalPages={listingTotalPages}
+        totalPages={listingMeta.totalPages}
         onPrev={() => setListingPage((p) => Math.max(1, p - 1))}
-        onNext={() => setListingPage((p) => Math.min(listingTotalPages, p + 1))}
+        onNext={() => setListingPage((p) => Math.min(listingMeta.totalPages, p + 1))}
       />
-      {pagedListings.map((listing) => {
+      {listings.map((listing) => {
         const thumb = listing.images?.[0]?.url;
         const p = priceNum(listing.price);
         return (
