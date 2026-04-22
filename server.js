@@ -56,9 +56,32 @@ async function sendUnreadCount(userId) {
   sendToUser(userId, { type: "notification:count", count });
 }
 
+async function archiveExpiredListings() {
+  const now = new Date();
+  const result = await prisma.listing.updateMany({
+    where: {
+      status: "ACTIVE",
+      expiresAt: { lte: now },
+    },
+    data: { status: "ARCHIVED" },
+  });
+  if (result.count > 0) {
+    console.info("[lifecycle] Archived expired listings", { count: result.count, at: now.toISOString() });
+  }
+}
+
 app.prepare().then(() => {
   const server = http.createServer((req, res) => handle(req, res));
   const wss = new WebSocketServer({ server, path: "/ws" });
+
+  void archiveExpiredListings().catch((err) => {
+    console.error("[lifecycle] Initial expiry pass failed", err);
+  });
+  setInterval(() => {
+    void archiveExpiredListings().catch((err) => {
+      console.error("[lifecycle] Scheduled expiry pass failed", err);
+    });
+  }, 60 * 60 * 1000);
 
   wss.on("connection", async (ws, req) => {
     try {
@@ -108,6 +131,13 @@ app.prepare().then(() => {
               include: { owner: true },
             });
             if (!listing || listing.ownerId === session.userId) return;
+            if (
+              listing.status !== "ACTIVE" ||
+              listing.moderationState !== "APPROVED" ||
+              (listing.expiresAt && listing.expiresAt <= new Date())
+            ) {
+              return;
+            }
 
             conversation = await prisma.conversation.upsert({
               where: {
@@ -127,6 +157,9 @@ app.prepare().then(() => {
           }
 
           if (!conversation) return;
+          const isParticipant =
+            conversation.requesterId === session.userId || conversation.ownerId === session.userId;
+          if (!isParticipant) return;
 
           const message = await prisma.message.create({
             data: {

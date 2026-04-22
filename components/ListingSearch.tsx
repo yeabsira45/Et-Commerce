@@ -37,16 +37,18 @@ type Listing = {
 
 type Props = {
   initialCategory?: string;
+  initialQuery?: string;
+  initialSubcategory?: string;
   title?: string;
   query?: string;
   onQueryChange?: (value: string) => void;
 };
 
-export function ListingSearch({ initialCategory, title, query, onQueryChange }: Props) {
+export function ListingSearch({ initialCategory, initialQuery, initialSubcategory, title, query, onQueryChange }: Props) {
   const { savedItems, toggleSave } = useAppContext();
   const showToast = useToast();
   const [navigatingListingId, setNavigatingListingId] = useState<string | null>(null);
-  const [internalQuery, setInternalQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState(initialQuery || "");
   const [category, setCategory] = useState(initialCategory || "");
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
@@ -62,6 +64,7 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
   const [salaryMin, setSalaryMin] = useState("");
   const [salaryMax, setSalaryMax] = useState("");
   const [beautySubcategory, setBeautySubcategory] = useState("");
+  const [forcedSubcategory, setForcedSubcategory] = useState(initialSubcategory || "");
   const [beautyBrands, setBeautyBrands] = useState<string[]>([]);
   const [beautyTypes, setBeautyTypes] = useState<string[]>([]);
   const [beautyGenders, setBeautyGenders] = useState<string[]>([]);
@@ -77,6 +80,16 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
 
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (query === undefined) {
+      setInternalQuery(initialQuery || "");
+    }
+  }, [initialQuery, query]);
+
+  useEffect(() => {
+    setForcedSubcategory(initialSubcategory || "");
+  }, [initialSubcategory]);
 
   const categoryOptions = useMemo(() => categories.map((c) => c.name), []);
 
@@ -163,6 +176,7 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
     if (salaryMin) params.set("salaryMin", salaryMin);
     if (salaryMax) params.set("salaryMax", salaryMax);
     if (beautySubcategory) params.set("beautySubcategory", beautySubcategory);
+    if (forcedSubcategory) params.set("subcategory", forcedSubcategory);
     if (beautyBrands.length) params.set("beautyBrands", beautyBrands.join(","));
     if (beautyTypes.length) params.set("beautyTypes", beautyTypes.join(","));
     if (beautyGenders.length) params.set("beautyGenders", beautyGenders.join(","));
@@ -186,6 +200,7 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
     beautyBrands,
     beautyGenders,
     beautySubcategory,
+    forcedSubcategory,
     beautyTypes,
     bedrooms,
     brands,
@@ -403,51 +418,67 @@ export function ListingSearch({ initialCategory, title, query, onQueryChange }: 
                   <span className="productCardLoadingSpinner" />
                 </div>
               ) : null}
-              <div className="productImgWrapper">
-                <Link href={`/item/${item.id}`} onClick={() => setNavigatingListingId(item.id)}>
+              <Link href={`/item/${item.id}`} className="productCardLink" onClick={() => setNavigatingListingId(item.id)}>
+                <div className="productImgWrapper">
                   <ListingCardImage src={imageUrl} alt={item.title} />
-                </Link>
-              </div>
-              <div className="productBody">
-                <div className="productPrice">{formatEtbPrice(item.price)}</div>
-                <div className="productMeta">
-                  <span className="productPricingBadge">{getListingPricingLabel(item.details)}</span>
                 </div>
-                <h3 className="productTitle">
-                  <Link href={`/item/${item.id}`} onClick={() => setNavigatingListingId(item.id)}>
+                <div className="productBody">
+                  <div className="productPrice">{formatEtbPrice(item.price)}</div>
+                  <div className="productMeta">
+                    <span className="productPricingBadge">{getListingPricingLabel(item.details)}</span>
+                  </div>
+                  <h3 className="productTitle">
                     {item.title}
-                  </Link>
-                </h3>
-                <div className="productVendorRow">
-                  {vendorProfileHref ? (
-                    <Link href={vendorProfileHref} className="productVendorLink" aria-label={`View ${vendorName} profile`}>
-                      <Avatar name={vendorName} imageUrl={vendorImageUrl} size={34} className="productVendorAvatar" />
-                      <span className="productVendorName">{vendorName}</span>
-                    </Link>
-                  ) : (
-                    <div className="productVendorLink">
-                      <Avatar name={vendorName} imageUrl={vendorImageUrl} size={34} className="productVendorAvatar" />
-                      <span className="productVendorName">{vendorName}</span>
-                    </div>
-                  )}
+                  </h3>
+                  <div className="productVendorRow">
+                    {vendorProfileHref ? (
+                      <span
+                        className="productVendorLink"
+                        role="link"
+                        tabIndex={0}
+                        aria-label={`View ${vendorName} profile`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void router.push(vendorProfileHref);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void router.push(vendorProfileHref);
+                          }
+                        }}
+                      >
+                        <Avatar name={vendorName} imageUrl={vendorImageUrl} size={34} className="productVendorAvatar" />
+                        <span className="productVendorName">{vendorName}</span>
+                      </span>
+                    ) : (
+                      <div className="productVendorLink">
+                        <Avatar name={vendorName} imageUrl={vendorImageUrl} size={34} className="productVendorAvatar" />
+                        <span className="productVendorName">{vendorName}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="productMeta">
+                    <span className="productLocation">
+                      {item.city}, {item.area}
+                    </span>
+                  </div>
                 </div>
-                <div className="productMeta">
-                  <span className="productLocation">
-                    {item.city}, {item.area}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="itemSecondaryBtn"
-                  onClick={() => {
-                    const wasSaved = isSaved;
-                    toggleSave({ id: item.id, title: item.title });
-                    showToast(wasSaved ? "Removed from bookmarks." : "Saved to bookmarks.", "success");
-                  }}
-                >
-                  {isSaved ? "Saved" : "Save"}
-                </button>
-              </div>
+              </Link>
+              <button
+                type="button"
+                className="itemSecondaryBtn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const wasSaved = isSaved;
+                  toggleSave({ id: item.id, title: item.title });
+                  showToast(wasSaved ? "Removed from bookmarks." : "Saved to bookmarks.", "success");
+                }}
+              >
+                {isSaved ? "Saved" : "Save"}
+              </button>
             </article>
           );
         })}

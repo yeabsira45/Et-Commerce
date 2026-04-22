@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSessionToken, hashToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "../../lib/email";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 type ForgotPasswordBody = {
   email?: unknown;
@@ -14,6 +15,11 @@ function getBaseUrl() {
 }
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  if (!(await enforceRateLimit(`auth_forgot_password:${ip}`, 6, 60_000))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const body = (await req.json().catch(() => ({}))) as ForgotPasswordBody;
   const email = String(body.email || "").trim().toLowerCase();
 

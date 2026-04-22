@@ -20,12 +20,51 @@ const CATEGORY_ALIASES: Record<string, string[]> = {
   [CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY]: [CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY, "Construction & Repair"],
 };
 
+function parseNumericInput(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value.replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
+}
+
+function extractNumericValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/,/g, "").trim();
+  if (!normalized) return null;
+  const direct = Number(normalized);
+  if (Number.isFinite(direct)) return direct;
+  const match = normalized.match(/-?\d+(\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readNumericDetailsValue(details: unknown, keys: string[]): number | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  const record = details as Record<string, unknown>;
+  for (const key of keys) {
+    const parsed = extractNumericValue(record[key]);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function passesRange(value: number | null, min: number | undefined, max: number | undefined): boolean {
+  if (min === undefined && max === undefined) return true;
+  if (value === null) return false;
+  if (min !== undefined && value < min) return false;
+  if (max !== undefined && value > max) return false;
+  return true;
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, Number(searchParams.get("page") || "1"));
   const pageSize = Math.min(20, Math.max(10, Number(searchParams.get("pageSize") || "20")));
   const skip = (page - 1) * pageSize;
   const category = searchParams.get("category");
+  const subcategory = searchParams.get("subcategory");
   const priceMin = searchParams.get("priceMin");
   const priceMax = searchParams.get("priceMax");
   const location = searchParams.get("location");
@@ -45,12 +84,19 @@ export async function GET(req: Request) {
   const beautyTypes = (searchParams.get("beautyTypes") || "").split(",").filter(Boolean);
   const beautyGenders = (searchParams.get("beautyGenders") || "").split(",").filter(Boolean);
 
-  const andClauses: Prisma.ListingWhereInput[] = [{ status: "ACTIVE" }];
+  const andClauses: Prisma.ListingWhereInput[] = [
+    { status: "ACTIVE" },
+    { moderationState: "APPROVED" },
+    { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+  ];
   const where: Prisma.ListingWhereInput = { AND: andClauses };
 
   if (category) {
     const aliases = CATEGORY_ALIASES[category] || [category];
     andClauses.push({ category: aliases.length === 1 ? aliases[0] : { in: aliases } });
+  }
+  if (subcategory) {
+    andClauses.push({ subcategory });
   }
   if (condition) andClauses.push({ condition: condition === "NEW" ? "NEW" : "USED" });
   if (vendorId) andClauses.push({ vendorId });
@@ -96,48 +142,88 @@ export async function GET(req: Request) {
   detailsEqualsAny(["$.\"Custom Product Type\"", "$.\"Product Type\""], beautyTypes);
   detailsEqualsAny(["$.Gender"], beautyGenders);
 
-  const numericDetailFilter = (path: string, op: ">=" | "<=", value: string | null) => {
-    if (!value) return;
-    const parsed = Number(value.replace(/[^\d.]/g, ""));
-    if (Number.isNaN(parsed)) return;
-    andClauses.push({
-      details: {
-        path,
-        string_contains: "",
-      },
-    });
-  };
-  // Prisma JSON path on MySQL does not support numeric comparisons directly.
-  // Keep clauses server-side in DB and avoid JS filtering; these become optional presence checks.
-  numericDetailFilter("$.\"Total Size\"", ">=", sizeMin);
-  numericDetailFilter("$.\"Total Size\"", "<=", sizeMax);
-  numericDetailFilter("$.Salary", ">=", salaryMin);
-  numericDetailFilter("$.Salary", "<=", salaryMax);
+  const numericSizeMin = parseNumericInput(sizeMin);
+  const numericSizeMax = parseNumericInput(sizeMax);
+  const numericSalaryMin = parseNumericInput(salaryMin);
+  const numericSalaryMax = parseNumericInput(salaryMax);
+  const hasNumericFilters =
+    numericSizeMin !== undefined ||
+    numericSizeMax !== undefined ||
+    numericSalaryMin !== undefined ||
+    numericSalaryMax !== undefined;
 
-  const [listings, total] = await Promise.all([
-    prisma.listing.findMany({
+  const listingSelect = {
+    id: true,
+    title: true,
+    price: true,
+    city: true,
+    area: true,
+    condition: true,
+    details: true,
+    subcategory: true,
+    createdAt: true,
+    images: { take: 1, orderBy: { sortOrder: "asc" as const }, select: { uploadId: true, sortOrder: true } },
+    vendor: {
+      select: { id: true, slug: true, storeName: true, city: true, area: true, profileImageUploadId: true },
+    },
+  };
+
+  let listings: Array<{
+    id: string;
+    title: string;
+    price: Prisma.Decimal | null;
+    city: string;
+    area: string;
+    condition: "NEW" | "USED";
+    details: Prisma.JsonValue | null;
+    subcategory: string | null;
+    createdAt: Date;
+    images: Array<{ uploadId: string; sortOrder: number }>;
+    vendor: { id: string; slug: string; storeName: string; city: string | null; area: string | null; profileImageUploadId: string | null } | null;
+  }> = [];
+  let total = 0;
+
+  if (!hasNumericFilters) {
+    const [rows, count] = await Promise.all([
+      prisma.listing.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+        select: listingSelect,
+      }),
+      prisma.listing.count({ where }),
+    ]);
+    listings = rows;
+    total = count;
+  } else {
+    const candidates = await prisma.listing.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      skip,
-      take: pageSize,
-      select: {
-        id: true,
-        title: true,
-        price: true,
-        city: true,
-        area: true,
-        condition: true,
-        details: true,
-        subcategory: true,
-        createdAt: true,
-        images: { take: 1, orderBy: { sortOrder: "asc" }, select: { uploadId: true, sortOrder: true } },
-        vendor: {
-          select: { id: true, slug: true, storeName: true, city: true, area: true, profileImageUploadId: true },
-        },
-      },
-    }),
-    prisma.listing.count({ where }),
-  ]);
+      select: { id: true, details: true },
+    });
+    const filteredIds = candidates
+      .filter((candidate) => {
+        const totalSize = readNumericDetailsValue(candidate.details, ["Total Size"]);
+        const salary = readNumericDetailsValue(candidate.details, ["Salary", "Salary (ETB)"]);
+        return (
+          passesRange(totalSize, numericSizeMin, numericSizeMax) &&
+          passesRange(salary, numericSalaryMin, numericSalaryMax)
+        );
+      })
+      .map((candidate) => candidate.id);
+
+    total = filteredIds.length;
+    const pageIds = filteredIds.slice(skip, skip + pageSize);
+    if (pageIds.length > 0) {
+      const pageRows = await prisma.listing.findMany({
+        where: { id: { in: pageIds } },
+        select: listingSelect,
+      });
+      const rowById = new Map(pageRows.map((row) => [row.id, row]));
+      listings = pageIds.map((id) => rowById.get(id)).filter(Boolean) as typeof pageRows;
+    }
+  }
 
   return NextResponse.json({
     page,

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import "../sell/sell.css";
 import { categories } from "@/components/categories";
 import { useAppContext } from "@/components/AppContext";
@@ -519,7 +520,7 @@ export default function SellPage() {
                   <div className="sellPhotoPreviewGrid">
                     {photoPreviews.map((preview, index) => (
                       <div key={preview} className="sellPhotoPreviewCard">
-                        <img src={preview} alt={photos[index]?.name || `Upload ${index + 1}`} className="sellPhotoPreview" />
+                        <Image src={preview} alt={photos[index]?.name || `Upload ${index + 1}`} className="sellPhotoPreview" fill />
                       </div>
                     ))}
                   </div>

@@ -12,10 +12,17 @@ export async function GET(request: NextRequest) {
   try {
     const listings = await prisma.listing.findMany({
       where: {
-        OR: [
-          { title: { contains: q } },
-          { category: { contains: q } },
-          { subcategory: { contains: q } },
+        AND: [
+          { status: "ACTIVE" },
+          { moderationState: "APPROVED" },
+          { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+          {
+            OR: [
+              { title: { contains: q } },
+              { category: { contains: q } },
+              { subcategory: { contains: q } },
+            ],
+          },
         ],
       },
       select: {

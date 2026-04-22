@@ -12,10 +12,17 @@ export async function POST(_req: Request, { params }: Params) {
 
   const listing = await prisma.listing.findUnique({
     where: { id: params.id },
-    select: { id: true, title: true, ownerId: true },
+    select: { id: true, title: true, ownerId: true, status: true, moderationState: true, expiresAt: true },
   });
   if (!listing) {
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+  }
+  if (
+    listing.status !== "ACTIVE" ||
+    listing.moderationState !== "APPROVED" ||
+    (listing.expiresAt && listing.expiresAt <= new Date())
+  ) {
+    return NextResponse.json({ error: "Listing is not available" }, { status: 400 });
   }
   if (listing.ownerId === user.id) {
     return NextResponse.json({ ok: true });

@@ -65,6 +65,13 @@ export async function POST(req: Request) {
     if (!listing) {
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     }
+    if (
+      listing.status !== "ACTIVE" ||
+      listing.moderationState !== "APPROVED" ||
+      (listing.expiresAt && listing.expiresAt <= new Date())
+    ) {
+      return NextResponse.json({ error: "Listing is not available for messaging" }, { status: 400 });
+    }
 
     if (listing.ownerId === user.id) {
       return NextResponse.json({ error: "Cannot message your own listing" }, { status: 400 });

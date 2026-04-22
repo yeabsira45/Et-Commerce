@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, hashToken, setSessionCookie, verifyPassword } from "@/lib/auth";
 import { uploadApiPath } from "@/lib/uploadSecurity";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+    if (!(await enforceRateLimit(`auth_login:${ip}`, 20, 60_000))) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const { identifier, password } = await req.json();
     if (!identifier || !password) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });

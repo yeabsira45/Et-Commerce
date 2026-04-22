@@ -21,6 +21,7 @@ function parseListingStatusPatch(value: unknown): ListingStatus | undefined {
 
 export async function GET(_req: Request, { params }: Params) {
   try {
+    const user = await getSessionUser();
     const listing = await prisma.listing.findUnique({
       where: { id: params.id },
       include: {
@@ -39,6 +40,14 @@ export async function GET(_req: Request, { params }: Params) {
       },
     });
     if (!listing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const visiblePublicly =
+      listing.status === "ACTIVE" &&
+      listing.moderationState === "APPROVED" &&
+      (!listing.expiresAt || listing.expiresAt > new Date());
+    const canViewPrivate = Boolean(user && (user.role === "ADMIN" || listing.ownerId === user.id));
+    if (!visiblePublicly && !canViewPrivate) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     let rating = 0;
@@ -143,7 +152,10 @@ export async function PATCH(req: Request, { params }: Params) {
         if (ownedUploads.length !== uploadIds.length) {
           return NextResponse.json({ error: "One or more images are not owned by your account." }, { status: 403 });
         }
-        await prisma.image.deleteMany({ where: { listingId: params.id } });
+      }
+
+      await prisma.image.deleteMany({ where: { listingId: params.id } });
+      if (uploadIds.length > 0) {
         await prisma.image.createMany({
           data: uploadIds.map((uploadId: string, index: number) => ({
             listingId: params.id,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 
 type Props = {
   name: string;
@@ -53,7 +54,7 @@ export function Avatar({ name, imageUrl, size = 40, className = "" }: Props) {
   }
 
   if (imageUrl) {
-    return <img src={imageUrl} alt={name} className={`avatarCircle ${className}`.trim()} style={{ width: size, height: size }} />;
+    return <Image src={imageUrl} alt={name} className={`avatarCircle ${className}`.trim()} width={size} height={size} />;
   }
 
   return (

@@ -4,11 +4,10 @@ import { createSessionToken, hashPassword, hashToken, setSessionCookie } from "@
 import { deriveStoreName, uniqueUsername, uniqueVendorSlug } from "@/lib/vendorNaming";
 import { validatePassword } from "@/lib/passwordRules";
 import { uploadApiPath } from "@/lib/uploadSecurity";
-import { invalidateUploadMetaCache } from "@/lib/uploadMetaCache";
 
 export async function POST(req: Request) {
   try {
-    const { fullName, email, password, storeName, city, area, street, phone, profileImageUploadId } = await req.json();
+    const { fullName, email, password, storeName, city, area, street, phone } = await req.json();
     if (!fullName || !email || !password || !city) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
@@ -41,17 +40,6 @@ export async function POST(req: Request) {
     const passwordHash = await hashPassword(password);
     const username = await uniqueUsername(String(fullName).trim());
     const finalSlug = await uniqueVendorSlug(resolvedStoreName);
-    let safeProfileImageUploadId: string | null = null;
-    if (typeof profileImageUploadId === "string" && profileImageUploadId.trim()) {
-      const upload = await prisma.upload.findUnique({
-        where: { id: profileImageUploadId.trim() },
-        select: { id: true, ownerUserId: true },
-      });
-      if (upload && upload.ownerUserId) {
-        // Ownership is validated after user creation by relinking owner in transaction below.
-        safeProfileImageUploadId = upload.id;
-      }
-    }
 
     const user = await prisma.user.create({
       data: {
@@ -67,24 +55,11 @@ export async function POST(req: Request) {
             area,
             street,
             phone: normalizedPhone,
-            profileImageUploadId: safeProfileImageUploadId,
           },
         },
       },
       include: { vendor: true },
     });
-
-    if (safeProfileImageUploadId) {
-      await prisma.upload.updateMany({
-        where: { id: safeProfileImageUploadId, ownerUserId: user.id },
-        data: {
-          ownerVendorId: user.vendor?.id || null,
-          linkedEntityType: "VENDOR_PROFILE",
-          linkedEntityId: user.vendor?.id || null,
-        },
-      });
-      invalidateUploadMetaCache(safeProfileImageUploadId);
-    }
 
     const token = createSessionToken();
     const tokenHash = hashToken(token);

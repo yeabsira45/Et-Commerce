@@ -10,7 +10,11 @@ export async function GET(_req: Request, { params }: Params) {
     include: {
       user: { select: { id: true, username: true, createdAt: true } },
       listings: {
-        where: { status: "ACTIVE" },
+        where: {
+          status: "ACTIVE",
+          moderationState: "APPROVED",
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
         include: { images: { take: 1, orderBy: { sortOrder: "asc" }, select: { uploadId: true, sortOrder: true } } },
       },
     },

@@ -1,4 +1,4 @@
-const buckets = new Map<string, { count: number; resetAt: number }>();
+import { prisma } from "@/lib/prisma";
 
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -9,16 +9,36 @@ export function getClientIp(req: Request): string {
   return req.headers.get("x-real-ip") || "unknown";
 }
 
-export function enforceRateLimit(key: string, limit: number, windowMs: number): boolean {
-  const now = Date.now();
-  const bucket = buckets.get(key);
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
+export async function enforceRateLimit(key: string, limit: number, windowMs: number): Promise<boolean> {
+  const nowMs = Date.now();
+  const windowStartMs = nowMs - (nowMs % windowMs);
+  const windowStart = new Date(windowStartMs);
+
+  const existing = await prisma.rateLimitBucket.findUnique({
+    where: { key },
+    select: { key: true, count: true, windowStart: true },
+  });
+
+  if (!existing) {
+    await prisma.rateLimitBucket.create({
+      data: { key, count: 1, windowStart },
+    });
     return true;
   }
-  if (bucket.count >= limit) {
-    return false;
+
+  if (existing.windowStart.getTime() !== windowStartMs) {
+    await prisma.rateLimitBucket.update({
+      where: { key },
+      data: { count: 1, windowStart },
+    });
+    return true;
   }
-  bucket.count += 1;
+
+  if (existing.count >= limit) return false;
+
+  await prisma.rateLimitBucket.update({
+    where: { key },
+    data: { count: { increment: 1 } },
+  });
   return true;
 }

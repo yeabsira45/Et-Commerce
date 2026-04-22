@@ -18,8 +18,8 @@ body {
   --border: rgba(15, 23, 42, 0.12);
   --shadow: 0 10px 30px rgba(2, 6, 23, 0.12);
 
-  --brand: #11b653;
-  --brand-dark: #0e9d46;
+  --brand: #2563eb;
+  --brand-dark: #1d4ed8;
   --brand-ink: #ffffff;
 
   --radius: 16px;
@@ -813,7 +813,7 @@ select {
 }
 
 .modalField .sellField:hover {
-  border-color: rgba(17, 182, 83, 0.42);
+  border-color: rgba(8, 55, 156, 0.42);
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
 }
 
@@ -857,9 +857,9 @@ select {
 }
 
 .sellSelectModern:hover {
-  border-color: rgba(17, 182, 83, 0.35);
+  border-color: rgba(37, 99, 235, 0.35);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  background: linear-gradient(180deg, #ffffff, #f8fffb);
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
 }
 
 .sellSelect:disabled {
@@ -873,10 +873,10 @@ select {
 }
 
 .sellSelectActive {
-  border-color: rgba(17, 182, 83, 0.82);
-  box-shadow: 0 0 0 4px rgba(17, 182, 83, 0.12), 0 14px 28px rgba(15, 23, 42, 0.12);
+  border-color: rgba(37, 99, 235, 0.82);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 14px 28px rgba(15, 23, 42, 0.12);
   transform: translateY(-1px);
-  background: linear-gradient(180deg, #ffffff, #f3fff7);
+  background: linear-gradient(180deg, #ffffff, #f3f8ff);
 }
 
 .sellSelectCopy {
@@ -967,8 +967,8 @@ select {
 }
 
 .sellDropdownSearch:focus {
-  border-color: rgba(17, 182, 83, 0.7);
-  box-shadow: 0 0 0 4px rgba(17, 182, 83, 0.12);
+  border-color: rgba(37, 99, 235, 0.7);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
   background: #fff;
 }
 
@@ -995,8 +995,8 @@ select {
 }
 
 .sellDropdownItem.isSelected {
-  background: rgba(17, 182, 83, 0.1);
-  color: #0e9d46;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
   font-weight: 700;
 }
 
@@ -1026,8 +1026,8 @@ select {
 
 .modalInput:focus {
   outline: none;
-  border-color: rgba(17, 182, 83, 0.7);
-  box-shadow: 0 0 0 4px rgba(17, 182, 83, 0.12);
+  border-color: rgba(37, 99, 235, 0.7);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
 .modalInputError {
@@ -1138,7 +1138,7 @@ select {
 
 .modalToastInline {
   margin-top: 6px;
-  color: #0f766e;
+  color: #1e40af;
   animation: uiFadeIn 180ms ease-out;
 }
 
@@ -1186,7 +1186,7 @@ select {
 }
 
 .modalPrimary {
-  background: #16a34a;
+  background: #2563eb;
   color: #ffffff;
 }
 
@@ -1963,7 +1963,7 @@ select {
 .itemPrice {
   font-size: 20px;
   font-weight: 900;
-  color: #16a34a;
+  color: #2563eb;
 }
 
 .itemSellerRow {
@@ -1980,7 +1980,7 @@ select {
 }
 
 .itemSellerLink:hover {
-  background: rgba(17, 182, 83, 0.06);
+  background: rgba(37, 99, 235, 0.06);
   transform: translateY(-1px);
 }
 
@@ -2165,13 +2165,14 @@ select {
 
 .itemSpecs h3 {
   margin: 0 0 8px;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .itemSpecs ul {
   margin: 0;
   padding: 0;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.5;
   color: #0f172a;
   display: grid;
   gap: 8px;
@@ -2192,8 +2193,8 @@ select {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: rgba(17, 182, 83, 0.1);
-  color: #0f766e;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1e40af;
 }
 
 .itemSpecIcon svg {
@@ -2472,7 +2473,7 @@ select {
   min-width: 22px;
   height: 22px;
   border-radius: 999px;
-  background: #16a34a;
+  background: #2563eb;
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -2515,7 +2516,7 @@ select {
 }
 
 .messagesHeaderProfileLink:hover {
-  background: rgba(17, 182, 83, 0.06);
+  background: rgba(37, 99, 235, 0.06);
   transform: translateY(-1px);
 }
 
@@ -2557,7 +2558,7 @@ select {
 
 .messagesBubble.isMine {
   justify-self: end;
-  background: #dcfce7;
+  background: #dbeafe;
 }
 
 .messagesBubbleSkeleton {
@@ -2608,7 +2609,7 @@ select {
   width: 46px;
   height: 46px;
   border-radius: 999px;
-  border: 4px solid rgba(17, 182, 83, 0.16);
+  border: 4px solid rgba(37, 99, 235, 0.16);
   border-top-color: var(--brand);
   animation: pageLoaderSpin 820ms linear infinite;
 }
@@ -2657,7 +2658,7 @@ select {
 }
 
 .messagesSendBtn {
-  background: #16a34a;
+  background: #2563eb;
   color: #fff;
 }
 
@@ -2797,7 +2798,7 @@ select {
 
 .dashboardVendorBlock:hover {
   transform: translateY(-1px);
-  border-color: rgba(17, 182, 83, 0.22);
+  border-color: rgba(37, 99, 235, 0.22);
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
 }
 

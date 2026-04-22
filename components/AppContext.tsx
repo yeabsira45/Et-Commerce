@@ -247,7 +247,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [bus, loadConversations, user]);
 
-  async function login(identifier: string, password: string): Promise<boolean> {
+  const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -263,9 +263,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch {}
     return false;
-  }
+  }, [applyUser, refreshUser]);
 
-  async function register(payload: RegisterPayload): Promise<RegisterResult> {
+  const register = useCallback(async (payload: RegisterPayload): Promise<RegisterResult> => {
     if (!payload.phone?.trim()) {
       return { ok: false, error: "Phone number is required." };
     }
@@ -326,17 +326,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch {}
     return { ok: false, error: "Registration failed." };
-  }
+  }, [applyUser]);
 
-  async function logout() {
+  const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     clearDashboardTab();
     setUser(null);
     setConversations([]);
     setUnreadMessages(0);
-  }
+  }, []);
 
-  function toggleSave(item: ProductCard) {
+  const toggleSave = useCallback((item: ProductCard) => {
     setSavedItems((prev) => {
       const exists = prev.some((p) => p.id === item.id);
       const isServerBackedUser = Boolean(user);
@@ -359,9 +359,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, item];
     });
-  }
+  }, [user]);
 
-  async function startChat(listingId: string, message: string) {
+  const startChat = useCallback(async (listingId: string, message: string) => {
     if (!user) return null;
     try {
       const res = await fetch("/api/conversations", {
@@ -383,9 +383,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return null;
     }
     return null;
-  }
+  }, [user, setActiveConversationId, bus, loadConversations]);
 
-  async function sendMessage(conversationId: string, body: string) {
+  const sendMessage = useCallback(async (conversationId: string, body: string) => {
     if (!user || !body.trim()) return false;
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "message:send", conversationId, body: body.trim() }));
@@ -408,9 +408,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       return false;
     }
-  }
+  }, [user, socketRef, bus, loadConversations]);
 
-  function markNotificationsRead() {
+  const markNotificationsRead = useCallback(() => {
     if (user?.id) {
       void fetch("/api/notifications", { method: "POST" });
       if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -418,13 +418,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
     setUnreadMessages(0);
-  }
+  }, [user, socketRef, setUnreadMessages]);
 
-  function subscribeSocket(event: string, handler: (detail: any) => void) {
+  const subscribeSocket = useCallback((event: string, handler: (detail: any) => void) => {
     const listener = (e: Event) => handler((e as CustomEvent).detail);
     bus.addEventListener(event, listener);
     return () => bus.removeEventListener(event, listener);
-  }
+  }, [bus]);
 
   const value: AppContextValue = useMemo(
     () => ({

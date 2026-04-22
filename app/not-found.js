@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function NotFound() {
   return (
@@ -22,10 +23,12 @@ export default function NotFound() {
       }}>
 
         {/* Illustration */}
-        <img
+        <Image
           src="/errorpage.svg"
           alt="Lost page"
-          style={{ width: "220px", marginBottom: "20px" }}
+          width={220}
+          height={220}
+          style={{ marginBottom: "20px" }}
         />
 
         <h1 style={{

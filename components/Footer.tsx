@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 const REGIONS = [
   { name: "Afar", flag: "/flags/afar.webp", colors: ["#FFD700", "#DA121A"] },
@@ -107,10 +108,12 @@ export function Footer() {
       className="footerFlag"
       aria-label={region.name}
     >
-      <img
+      <Image
         src={region.flag}
         alt={`${region.name} flag`}
         className="footerFlagImage"
+        width={20}
+        height={15}
       />
       <span className="footerTooltip">{region.name}</span>
     </button>

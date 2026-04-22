@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { listingRepositoryCreate, ListingPersistError } from "@/lib/listings/listingRepository";
 import { parseUploadIdFromValue, uploadApiPath } from "@/lib/uploadSecurity";
 import { invalidateUploadMetaCacheMany } from "@/lib/uploadMetaCache";
+
+const LISTING_EXPIRY_DAYS = 60;
+const DUPLICATE_LISTING_WINDOW_DAYS = 30;
+const MAX_NEW_LISTINGS_PER_DAY = 25;
+
+function plusDays(base: Date, days: number) {
+  return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+}
 
 function toPublicVendor(vendor: {
   id: string;
@@ -71,7 +80,11 @@ export async function GET(req: Request) {
   }
 
   const listings = await prisma.listing.findMany({
-    where: { status: "ACTIVE" },
+    where: {
+      status: "ACTIVE",
+      moderationState: "APPROVED",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
     orderBy: { createdAt: "desc" },
     take: Math.min(limit, 50),
     include: {
@@ -117,6 +130,34 @@ export async function POST(req: Request) {
       price !== undefined && price !== null && String(price).trim() !== ""
         ? Number(String(price).replace(/[^\d.]/g, ""))
         : null;
+    const now = new Date();
+
+    const createdInLastDay = await prisma.listing.count({
+      where: {
+        ownerId: user.id,
+        createdAt: { gte: plusDays(now, -1) },
+      },
+    });
+    if (createdInLastDay >= MAX_NEW_LISTINGS_PER_DAY) {
+      return NextResponse.json({ error: "Posting limit reached. Please try again later." }, { status: 429 });
+    }
+
+    const duplicateWhere: Prisma.ListingWhereInput = {
+      ownerId: user.id,
+      category: String(category),
+      title: titleTrimmed,
+      createdAt: { gte: plusDays(now, -DUPLICATE_LISTING_WINDOW_DAYS) },
+    };
+    if (normalizedPrice !== null) {
+      duplicateWhere.price = normalizedPrice;
+    }
+    const duplicate = await prisma.listing.findFirst({
+      where: duplicateWhere,
+      select: { id: true },
+    });
+    if (duplicate) {
+      return NextResponse.json({ error: "Duplicate listing detected. Please edit your existing ad." }, { status: 409 });
+    }
 
     let vendorId = user.vendor?.id;
     let vendorPhone = user.vendor?.phone?.trim() || "";
@@ -181,6 +222,8 @@ export async function POST(req: Request) {
       vendorId,
       ownerId: user.id,
       rawDetails: details,
+      moderationState: "PENDING",
+      expiresAt: plusDays(now, LISTING_EXPIRY_DAYS),
       images: requestedImageUploadIds.map((uploadId: string, idx: number) => ({
         uploadId,
         sortOrder: idx,

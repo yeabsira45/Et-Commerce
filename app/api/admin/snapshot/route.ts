@@ -6,7 +6,7 @@ import { uploadApiPath } from "@/lib/uploadSecurity";
 
 export async function GET(req: Request) {
   const ip = getClientIp(req);
-  if (!enforceRateLimit(`admin_snapshot:${ip}`, 20, 60_000)) {
+  if (!(await enforceRateLimit(`admin_snapshot:${ip}`, 20, 60_000))) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -57,6 +57,11 @@ export async function GET(req: Request) {
         id: true,
         title: true,
         status: true,
+        moderationState: true,
+        moderationReason: true,
+        moderatedAt: true,
+        moderatedByUserId: true,
+        expiresAt: true,
         price: true,
         city: true,
         area: true,

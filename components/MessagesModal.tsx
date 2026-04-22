@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useAppContext } from "./AppContext";
 
 type Props = {
@@ -103,7 +104,7 @@ export function MessagesModal({ open, onClose }: Props) {
                     className={`modalConversationItem ${activeConversation?.id === conversation.id ? "isActive" : ""}`}
                     onClick={() => setActiveConversationId(conversation.id)}
                   >
-                    <img src={imageUrl} alt={displayName} className="modalConversationAvatar" />
+                    <Image src={imageUrl} alt={displayName} className="modalConversationAvatar" width={40} height={40} />
                     <div className="modalConversationText">
                       <div className="modalThreadTitle">{displayName}</div>
                       <div className="modalThreadMeta">{conversation.listing?.title}</div>

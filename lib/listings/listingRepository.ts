@@ -78,6 +78,11 @@ export type ListingCreateRepositoryArgs = {
   ownerId: string;
   rawDetails: unknown;
   images: { uploadId: string; sortOrder: number }[];
+  moderationState?: $Enums.ListingModerationState;
+  moderationReason?: string | null;
+  moderatedAt?: Date | null;
+  moderatedByUserId?: string | null;
+  expiresAt?: Date | null;
 };
 
 export async function listingRepositoryCreate(args: ListingCreateRepositoryArgs) {
@@ -100,6 +105,11 @@ export async function listingRepositoryCreate(args: ListingCreateRepositoryArgs)
       city: args.city,
       area: args.area,
       details: prep.details,
+      moderationState: args.moderationState ?? "APPROVED",
+      moderationReason: args.moderationReason ?? undefined,
+      moderatedAt: args.moderatedAt ?? undefined,
+      moderatedByUserId: args.moderatedByUserId ?? undefined,
+      expiresAt: args.expiresAt ?? undefined,
       vendorId: args.vendorId,
       ownerId: args.ownerId,
       images: { create: args.images },

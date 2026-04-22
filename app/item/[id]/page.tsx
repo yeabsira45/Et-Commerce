@@ -579,10 +579,73 @@ function buildSpecs(listing: Listing): Spec[] {
 }
 
 function iconForSpec(label: string, category: string, subcategory: string): SpecIconKind {
+  const normalizedLabel = label.trim().toLowerCase();
   const iconMap: Record<string, SpecIconKind> = {
-    Brand: "tag", Model: "layers", Condition: "spark", RAM: "ram", "Internal Storage": "storage", Storage: "storage", "Screen Size": "monitor", "Operating System": "shield", "Battery Capacity (mAh)": "battery", "Battery Life": "clock", "Main Camera": "camera", "Selfie Camera": "camera", Color: "palette", Resolution: "grid", Type: "sliders", "Display Tech": "signal", "Smart TV": "signal", "HDMI Ports": "plug", "Processor (CPU)": "chip", "Graphics (GPU)": "gpu", "Vehicle Make": "car", "Year of Manufacture": "calendar", Trim: "wand", "Body Type": "door", Seats: "seat", "Engine Size (cc)": "engine", "Horsepower (hp)": "horse", Drivetrain: "road", "Fuel Type": "fuel", Transmission: "gear", "Top Speed": "speed", Mileage: "map", "Plate Number": "id", "Registration status": "document", "Interior Color": "sofa", Delivery: "truck", "Delivery Charge": "coins", Negotiable: "handshake",
+    brand: "tag",
+    "vehicle make": "car",
+    model: "layers",
+    condition: "spark",
+    ram: "ram",
+    "internal storage": "storage",
+    storage: "storage",
+    "screen size": "monitor",
+    "operating system": "shield",
+    "battery capacity (mah)": "battery",
+    "battery life": "clock",
+    "main camera": "camera",
+    "selfie camera": "camera",
+    color: "palette",
+    resolution: "grid",
+    type: "sliders",
+    "display tech": "signal",
+    "smart tv": "signal",
+    "hdmi ports": "plug",
+    "processor (cpu)": "chip",
+    "graphics (gpu)": "gpu",
+    "year of manufacture": "calendar",
+    trim: "wand",
+    "body type": "door",
+    seats: "seat",
+    "engine size (cc)": "engine",
+    "horsepower (hp)": "horse",
+    drivetrain: "road",
+    "fuel type": "fuel",
+    transmission: "gear",
+    "transmission type": "gear",
+    gearbox: "gear",
+    "gear box": "gear",
+    "top speed": "speed",
+    mileage: "map",
+    "plate number": "id",
+    "registration status": "document",
+    "interior color": "sofa",
+    "number of cylinders": "engine",
+    cylinders: "engine",
+    delivery: "truck",
+    "delivery charge": "coins",
+    negotiable: "handshake",
   };
-  if (iconMap[label]) return iconMap[label];
+  if (iconMap[normalizedLabel]) return iconMap[normalizedLabel];
+
+  if (normalizedLabel.includes("transmission") || normalizedLabel.includes("gear")) return "gear";
+  if (normalizedLabel.includes("fuel")) return "fuel";
+  if (normalizedLabel.includes("engine") || normalizedLabel.includes("cylinder")) return "engine";
+  if (normalizedLabel.includes("seat")) return "seat";
+  if (normalizedLabel.includes("body")) return "door";
+  if (normalizedLabel.includes("mileage") || normalizedLabel.includes("distance")) return "map";
+  if (normalizedLabel.includes("year")) return "calendar";
+  if (normalizedLabel.includes("registration")) return "document";
+  if (normalizedLabel.includes("plate")) return "id";
+  if (normalizedLabel.includes("camera")) return "camera";
+  if (normalizedLabel.includes("battery")) return "battery";
+  if (normalizedLabel.includes("storage")) return "storage";
+  if (normalizedLabel.includes("ram")) return "ram";
+  if (normalizedLabel.includes("processor") || normalizedLabel.includes("cpu")) return "chip";
+  if (normalizedLabel.includes("graphics") || normalizedLabel.includes("gpu")) return "gpu";
+  if (normalizedLabel.includes("color")) return "palette";
+  if (normalizedLabel.includes("price") || normalizedLabel.includes("cost")) return "coins";
+  if (normalizedLabel.includes("delivery")) return "truck";
+
   if (subcategory === "Smartphones" || subcategory === "Feature Phones") return "phone";
   if (subcategory === "Televisions") return "tv";
   if (subcategory === "Laptops") return "laptop";
@@ -619,7 +682,7 @@ function SpecIcon({ kind }: { kind: SpecIconKind }) {
     case "horse": return <svg {...common}><path d="M8 18v-4l2-2 2 1 3-2 2 2v5" /><path d="M9 8h4l2 3" /></svg>;
     case "road": return <svg {...common}><path d="M9 3 6 21" /><path d="M15 3 18 21" /><path d="M12 7v2M12 13v2M12 19v2" /></svg>;
     case "fuel": return <svg {...common}><path d="M6 20V6a2 2 0 0 1 2-2h5v16H6Z" /><path d="M13 8h2l3 3v6a2 2 0 0 1-4 0v-2" /></svg>;
-    case "gear": return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></svg>;
+    case "gear": return <svg {...common}><circle cx="12" cy="6" r="2.5" /><path d="M12 8.5V19M8 19h8M9.5 13h5" /><path d="M9.5 13v3M14.5 13v3" /></svg>;
     case "speed": return <svg {...common}><path d="M5 17a7 7 0 1 1 14 0" /><path d="m12 12 4-2" /></svg>;
     case "map": return <svg {...common}><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Z" /><path d="M9 4v14M15 6v14" /></svg>;
     case "id": return <svg {...common}><rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="8" cy="12" r="2" /><path d="M13 10h4M13 14h4" /></svg>;

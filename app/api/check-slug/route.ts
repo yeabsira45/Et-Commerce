@@ -4,7 +4,7 @@ import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export async function GET(req: Request) {
   const ip = getClientIp(req);
-  if (!enforceRateLimit(`check_slug:${ip}`, 30, 60_000)) {
+  if (!(await enforceRateLimit(`check_slug:${ip}`, 30, 60_000))) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
