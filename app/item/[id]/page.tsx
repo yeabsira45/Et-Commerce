@@ -85,6 +85,13 @@ type SpecIconKind =
   | "laptop"
   | "dot";
 
+function computeHeroSlideDir(cur: number, next: number, len: number): "left" | "right" {
+  if (len <= 1) return "right";
+  if (cur === len - 1 && next === 0) return "right";
+  if (cur === 0 && next === len - 1) return "left";
+  return next > cur ? "right" : "left";
+}
+
 export default function ItemPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { startChat, user, savedItems, toggleSave } = useAppContext();
@@ -98,9 +105,12 @@ export default function ItemPage({ params }: { params: { id: string } }) {
   const [reporting, setReporting] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [heroSlideDir, setHeroSlideDir] = useState<"left" | "right">("right");
+  const [heroAnimKey, setHeroAnimKey] = useState(0);
   const lightboxCloseBtnRef = useRef<HTMLButtonElement | null>(null);
   const lightboxContentRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const prevHeroIdxRef = useRef<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -114,6 +124,9 @@ export default function ItemPage({ params }: { params: { id: string } }) {
           return;
         }
         const data = await res.json();
+        prevHeroIdxRef.current = null;
+        setHeroAnimKey(0);
+        setHeroSlideDir("right");
         setListing(data.listing);
         setContactRevealed(false);
         setActiveImageIndex(0);
@@ -211,6 +224,27 @@ export default function ItemPage({ params }: { params: { id: string } }) {
     };
   }, [fullscreenOpen]);
 
+  const heroGalleryLen = listing?.images?.length ?? 0;
+  const safeHeroIndex = heroGalleryLen ? Math.min(activeImageIndex, heroGalleryLen - 1) : 0;
+
+  useEffect(() => {
+    if (!listing?.images?.length || listing.images.length <= 1) {
+      prevHeroIdxRef.current = safeHeroIndex;
+      return;
+    }
+    if (prevHeroIdxRef.current === null) {
+      prevHeroIdxRef.current = safeHeroIndex;
+      return;
+    }
+    if (prevHeroIdxRef.current === safeHeroIndex) return;
+    const len = listing.images.length;
+    const cur = prevHeroIdxRef.current;
+    const n = safeHeroIndex;
+    setHeroSlideDir(computeHeroSlideDir(cur, n, len));
+    setHeroAnimKey((k) => k + 1);
+    prevHeroIdxRef.current = safeHeroIndex;
+  }, [listing, listing?.id, safeHeroIndex, heroGalleryLen]);
+
   if (loading) {
     return (
       <div className="container pageLoader" role="status" aria-live="polite" aria-label="Loading listing">
@@ -288,7 +322,14 @@ export default function ItemPage({ params }: { params: { id: string } }) {
               onClick={() => setFullscreenOpen(true)}
               aria-label="View image fullscreen"
             >
-              <Image src={activeImageUrl} alt={listing.title} width={640} height={480} priority />
+              <span
+                className={
+                  heroAnimKey === 0 ? "itemMainImageHero" : `itemMainImageHero itemMainImageHero--${heroSlideDir}`
+                }
+                key={heroAnimKey === 0 ? "hero-initial" : `hero-${safeImageIndex}-${heroAnimKey}`}
+              >
+                <Image src={activeImageUrl} alt={listing.title} width={640} height={480} priority />
+              </span>
             </button>
             <button
               type="button"
@@ -321,19 +362,27 @@ export default function ItemPage({ params }: { params: { id: string } }) {
           {listing.description ? <p>{listing.description}</p> : null}
           {specs.length > 0 ? (
             <div className="itemSpecs">
-              <h3>Item specifications</h3>
-              <ul>
-                {specs.map((spec) => (
-                  <li key={spec.label}>
-                    <span className="itemSpecIcon" aria-hidden="true">
-                      <SpecIcon kind={spec.icon} />
-                    </span>
-                    <span>
-                      <strong>{spec.label}:</strong> {spec.value}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <div className="itemSpecsCard">
+                <div className="itemSpecsHeader">
+                  <h3>Item specifications</h3>
+                  <span className="itemSpecsCount" aria-label={`${specs.length} specification fields`}>
+                    {specs.length} specs
+                  </span>
+                </div>
+                <div className="itemSpecsGrid" role="list">
+                  {specs.map((spec, idx) => (
+                    <div className="itemSpecCell" role="listitem" key={`${spec.label}-${idx}`}>
+                      <span className="itemSpecIcon" aria-hidden="true">
+                        <SpecIcon kind={spec.icon} />
+                      </span>
+                      <div className="itemSpecBody">
+                        <div className="itemSpecLabel">{spec.label}</div>
+                        <div className="itemSpecValue">{spec.value}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : null}
           <div className="itemSafety">
@@ -493,7 +542,14 @@ export default function ItemPage({ params }: { params: { id: string } }) {
               </button>
             ) : null}
             <div className="itemLightboxImageWrap">
-              <Image src={activeImageUrl} alt={listing.title} width={1400} height={1000} className="itemLightboxImage" />
+              <span
+                className={
+                  heroAnimKey === 0 ? "itemLightboxHero" : `itemLightboxHero itemLightboxHero--${heroSlideDir}`
+                }
+                key={heroAnimKey === 0 ? "lb-initial" : `lb-${safeImageIndex}-${heroAnimKey}`}
+              >
+                <Image src={activeImageUrl} alt={listing.title} width={1400} height={1000} className="itemLightboxImage" />
+              </span>
               <div className="itemLightboxWatermark" aria-hidden="true">
                 {Array.from({ length: 30 }).map((_, idx) => (
                   <span key={`wm-full-${idx}`}>ET-Commerce</span>

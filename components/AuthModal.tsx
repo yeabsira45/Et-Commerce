@@ -236,6 +236,22 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
     }
 
     if (mode === "register") {
+      const emailValue = email.trim().toLowerCase();
+      if (typeof window !== "undefined" && "credentials" in navigator && typeof password === "string" && password) {
+        try {
+          const PasswordCredentialCtor = (window as any).PasswordCredential;
+          if (PasswordCredentialCtor) {
+            const credential = new PasswordCredentialCtor({
+              id: emailValue,
+              password,
+              name: fullName.trim() || emailValue,
+            });
+            await (navigator as any).credentials.store(credential).catch(() => null);
+          }
+        } catch {
+          // Ignore unsupported credential manager behavior.
+        }
+      }
       const welcomeName = fullName.trim() || "there";
       setRegisterWelcome(`😉 Welcome ${welcomeName} !`);
       window.setTimeout(() => {
@@ -260,7 +276,24 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
       return;
     }
 
-    const welcomeName = identifier.trim() || "there";
+    const loginIdentifier = identifier.trim();
+    if (typeof window !== "undefined" && "credentials" in navigator && typeof password === "string" && password) {
+      try {
+        const PasswordCredentialCtor = (window as any).PasswordCredential;
+        if (PasswordCredentialCtor) {
+          const credential = new PasswordCredentialCtor({
+            id: loginIdentifier,
+            password,
+            name: loginIdentifier,
+          });
+          await (navigator as any).credentials.store(credential).catch(() => null);
+        }
+      } catch {
+        // Ignore unsupported credential manager behavior.
+      }
+    }
+
+    const welcomeName = loginIdentifier || "there";
     setInlineWelcome(`😉 Welcome ${welcomeName} !`);
     window.setTimeout(() => {
       setIdentifier("");
@@ -310,7 +343,13 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
           </div>
           <div className="authOauthDivider" aria-hidden="true">or</div>
 
-          <form ref={formRef} className={`modalForm ${mode === "register" ? "modalFormPolished" : ""}`} onSubmit={handleSubmit}>
+          <form
+            ref={formRef}
+            className={`modalForm ${mode === "register" ? "modalFormPolished" : ""}`}
+            onSubmit={handleSubmit}
+            autoComplete="on"
+            method="post"
+          >
             {mode === "login" ? (
               <>
                 <label className="modalField modalFieldFull">
@@ -328,6 +367,9 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                     required
                     placeholder="Username, email, or phone"
                     autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </label>
                 <label className="modalField modalFieldFull">
@@ -343,6 +385,9 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                       }}
                       className="modalInput"
                       autoComplete="current-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       required
                     />
                     <button type="button" className="modalEyeBtn" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"}>
@@ -408,7 +453,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                     </div>
                   </div>
                   {avatarToast ? <p className="modalSub modalToastInline">{avatarToast}</p> : null}
-                  <p className="modalSub modalToastInline">Image files only. Max size: {MAX_IMAGE_UPLOAD_MB}MB.</p>
+                  <p className="modalSub modalToastInline">Image files only. Up to {MAX_IMAGE_UPLOAD_MB}MB per image.</p>
                 </div>
                 <label className={`modalField ${missingRequiredFields?.fullName ? "modalFieldError" : ""}`} data-invalid={missingRequiredFields?.fullName ? "true" : "false"}>
                   <span className="modalLabel">Full Name</span>

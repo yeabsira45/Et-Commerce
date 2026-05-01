@@ -10,9 +10,13 @@ type ForgotPasswordBody = {
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const RESET_OTP_TTL_MS = 10 * 60 * 1000;
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 function getBaseUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
+  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  if (configured) return configured;
+  if (IS_PRODUCTION) return "";
+  return "http://localhost:3000";
 }
 
 export async function POST(req: Request) {
@@ -48,7 +52,11 @@ export async function POST(req: Request) {
   const otpCode = String(Math.floor(100000 + Math.random() * 900000));
   const tokenHash = hashToken(mode === "otp" ? `${email}:${otpCode}` : rawToken);
   const expiresAt = new Date(Date.now() + (mode === "otp" ? RESET_OTP_TTL_MS : RESET_TOKEN_TTL_MS));
-  const resetUrl = `${getBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const baseUrl = getBaseUrl();
+  if (!baseUrl) {
+    return NextResponse.json({ error: "App URL is not configured." }, { status: 500 });
+  }
+  const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
 
   await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
   await prisma.passwordResetToken.create({
@@ -81,18 +89,20 @@ export async function POST(req: Request) {
         html: mode === "otp" ? otpHtml : linkHtml,
       });
       emailDelivered = true;
-    } else {
+    } else if (!IS_PRODUCTION) {
       console.log(`[forgot-password] Reset OTP for ${user.email}: ${otpCode}`);
       console.log(`[forgot-password] Reset link for ${user.email}: ${resetUrl}`);
     }
   } catch (error) {
     // Do not leak email delivery failures to the client.
     console.error("[forgot-password] Failed to send reset email:", error);
-    console.log(`[forgot-password] Reset OTP for ${user.email}: ${otpCode}`);
-    console.log(`[forgot-password] Reset link for ${user.email}: ${resetUrl}`);
+    if (!IS_PRODUCTION) {
+      console.log(`[forgot-password] Reset OTP for ${user.email}: ${otpCode}`);
+      console.log(`[forgot-password] Reset link for ${user.email}: ${resetUrl}`);
+    }
   }
 
-  if (process.env.NODE_ENV !== "production" && mode === "otp" && !emailDelivered) {
+  if (!IS_PRODUCTION && mode === "otp" && !emailDelivered) {
     return NextResponse.json({
       ...baseResponse,
       debugOtp: otpCode,

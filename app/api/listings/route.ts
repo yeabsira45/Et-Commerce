@@ -11,6 +11,7 @@ import { recordAnalyticsEvent } from "@/lib/analytics";
 const LISTING_EXPIRY_DAYS = 60;
 const DUPLICATE_LISTING_WINDOW_DAYS = 30;
 const MAX_NEW_LISTINGS_PER_DAY = 25;
+const MAX_LISTING_IMAGES_PER_LISTING = 10;
 const DEFAULT_MODERATION_STATE = process.env.REQUIRE_LISTING_MODERATION === "true" ? "PENDING" : "APPROVED";
 
 function plusDays(base: Date, days: number) {
@@ -108,6 +109,21 @@ export async function POST(req: Request) {
   }
 
   try {
+    const body = await req.json().catch(
+      () =>
+        ({} as {
+          title?: unknown;
+          category?: unknown;
+          subcategory?: unknown;
+          description?: unknown;
+          price?: unknown;
+          condition?: unknown;
+          city?: unknown;
+          area?: unknown;
+          details?: Record<string, unknown> | null;
+          images?: unknown[];
+        })
+    );
     const {
       title,
       category,
@@ -119,7 +135,7 @@ export async function POST(req: Request) {
       area,
       details,
       images,
-    } = await req.json();
+    } = body;
 
     if (!title || !category || !city || !area) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -222,6 +238,12 @@ export async function POST(req: Request) {
 
     if (!requestedImageUploadIds.length) {
       return NextResponse.json({ error: "At least one uploaded image is required." }, { status: 400 });
+    }
+    if (requestedImageUploadIds.length > MAX_LISTING_IMAGES_PER_LISTING) {
+      return NextResponse.json(
+        { error: `You can attach up to ${MAX_LISTING_IMAGES_PER_LISTING} images per listing.` },
+        { status: 400 }
+      );
     }
 
     const ownedUploads = await prisma.upload.findMany({

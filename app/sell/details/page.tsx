@@ -1,8 +1,16 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useToast } from "@/components/ToastProvider";
-import { sanitizeListingImageUrls } from "@/lib/listingImageRules";
+import {
+  MAX_LISTING_IMAGES,
+  MAX_LISTING_IMAGE_FILE_BYTES,
+  resolveListingImageDisplaySrc,
+  sanitizeListingImageUrls,
+} from "@/lib/listingImageRules";
+import { MAX_IMAGE_UPLOAD_MB, validateImageFile } from "@/lib/imageUploadValidation";
+import { parseUploadIdFromValue } from "@/lib/uploadSecurity";
 import { normalizeSellDraftForStorage, type StorableSellDraft } from "@/lib/sellDraftStorage";
 import {
   clearListingUndoStack,
@@ -361,7 +369,43 @@ const MODEL_SUGGESTIONS: Record<string, string[]> = {
   Samsung: ["Galaxy S21", "Galaxy S22 Ultra", "Galaxy A54", "Galaxy Book 3", "Q60B", "TU7000", "HW-Q600C"],
   Xiaomi: ["Redmi Note 13", "Xiaomi 13T"],
   "Google Pixel": ["Pixel 7", "Pixel 8 Pro"],
-  Toyota: ["Corolla", "Yaris", "Vitz", "RAV4", "Hilux", "Land Cruiser"],
+  Toyota: [
+    "Adventure",
+    "Avalon",
+    "Avanza",
+    "Aygo",
+    "Belta",
+    "bZ3",
+    "bZ4X",
+    "C-HR",
+    "Camry",
+    "Carina",
+    "Coaster",
+    "Corolla",
+    "Corolla Cross",
+    "Corolla DX",
+    "Corolla Executive",
+    "Crown",
+    "Fortuner",
+    "HiAce (Abba Dulla / Dolphin)",
+    "Highlander",
+    "Hilux (Vigo / Revo / Invincible)",
+    "Land Cruiser",
+    "Land Cruiser (70 Series)",
+    "Land Cruiser Prado",
+    "Land Cruiser V8",
+    "Mark II",
+    "Platz",
+    "Prius",
+    "Raize",
+    "RAV4",
+    "Rush",
+    "Starlet",
+    "Tacoma",
+    "Urban Cruiser",
+    "Vitz",
+    "Yaris",
+  ],
   Honda: ["Civic", "Accord", "CR-V"],
   Hyundai: ["Elantra", "Tucson", "Santa Fe"],
   BYD: [
@@ -467,7 +511,43 @@ const MODEL_SUGGESTIONS: Record<string, string[]> = {
 };
 
 const VEHICLE_MODEL_SUGGESTIONS: Record<string, string[]> = {
-  Toyota: ["Corolla", "Yaris", "Vitz", "Camry", "RAV4", "Highlander", "Fortuner", "Land Cruiser", "Prado", "Hilux", "Hiace"],
+  Toyota: [
+    "Adventure",
+    "Avalon",
+    "Avanza",
+    "Aygo",
+    "Belta",
+    "bZ3",
+    "bZ4X",
+    "C-HR",
+    "Camry",
+    "Carina",
+    "Coaster",
+    "Corolla",
+    "Corolla Cross",
+    "Corolla DX",
+    "Corolla Executive",
+    "Crown",
+    "Fortuner",
+    "HiAce (Abba Dulla / Dolphin)",
+    "Highlander",
+    "Hilux (Vigo / Revo / Invincible)",
+    "Land Cruiser",
+    "Land Cruiser (70 Series)",
+    "Land Cruiser Prado",
+    "Land Cruiser V8",
+    "Mark II",
+    "Platz",
+    "Prius",
+    "Raize",
+    "RAV4",
+    "Rush",
+    "Starlet",
+    "Tacoma",
+    "Urban Cruiser",
+    "Vitz",
+    "Yaris",
+  ],
   Nissan: ["Sunny", "Altima", "Sentra", "X-Trail", "Qashqai", "Patrol", "Navara", "Urvan"],
   Honda: ["Civic", "Accord", "City", "CR-V", "HR-V", "Pilot"],
   Suzuki: ["Alto", "Swift", "Dzire", "Celerio", "Baleno", "Ertiga", "Vitara", "Jimny", "S-Presso"],
@@ -606,22 +686,22 @@ function buildBrandGroups(priorityBrands: string[] = []): SelectGroup[] {
 }
 
 const SMARTPHONE_MODEL_SUGGESTIONS: Record<string, string[]> = {
-  Apple: ["iPhone 6", "iPhone 6 Plus", "iPhone 6s", "iPhone 6s Plus", "iPhone 7", "iPhone 7 Plus", "iPhone 8", "iPhone 8 Plus", "iPhone X", "iPhone XR", "iPhone XS", "iPhone XS Max", "iPhone 11", "iPhone 11 Pro", "iPhone 11 Pro Max", "iPhone 12", "iPhone 12 Mini", "iPhone 12 Pro", "iPhone 12 Pro Max", "iPhone 13", "iPhone 13 Mini", "iPhone 13 Pro", "iPhone 13 Pro Max", "iPhone 14", "iPhone 14 Plus", "iPhone 14 Pro", "iPhone 14 Pro Max", "iPhone 15", "iPhone 15 Plus", "iPhone 15 Pro", "iPhone 15 Pro Max", "iPhone 16", "iPhone 16 Plus", "iPhone 16 Pro", "iPhone 16 Pro Max", "Other"],
-  Samsung: ["Galaxy S6", "Galaxy S6 Edge", "Galaxy S7", "Galaxy S7 Edge", "Galaxy S8", "Galaxy S8+", "Galaxy S9", "Galaxy S9+", "Galaxy S10", "Galaxy S10+", "Galaxy S10e", "Galaxy S20", "Galaxy S20+", "Galaxy S20 Ultra", "Galaxy S21", "Galaxy S21+", "Galaxy S21 Ultra", "Galaxy S22", "Galaxy S22+", "Galaxy S22 Ultra", "Galaxy S23", "Galaxy S23+", "Galaxy S23 Ultra", "Galaxy S24", "Galaxy S24+", "Galaxy S24 Ultra", "Galaxy S25", "Galaxy S25+", "Galaxy S25 Ultra", "Galaxy A10", "Galaxy A20", "Galaxy A30", "Galaxy A50", "Galaxy A51", "Galaxy A52", "Galaxy A53", "Galaxy A54", "Galaxy A55", "Galaxy Z Fold3", "Galaxy Z Fold4", "Galaxy Z Fold5", "Galaxy Z Fold6", "Galaxy Z Flip3", "Galaxy Z Flip4", "Galaxy Z Flip5", "Galaxy Z Flip6", "Other"],
-  Xiaomi: ["Mi 9", "Mi 10", "Mi 11", "Xiaomi 12", "Xiaomi 12T", "Xiaomi 13", "Xiaomi 13T", "Xiaomi 14", "Xiaomi 14T", "Redmi Note 10", "Redmi Note 11", "Redmi Note 12", "Redmi Note 13", "Redmi Note 14", "POCO X3", "POCO X4", "POCO X5", "POCO X6", "POCO F3", "POCO F4", "POCO F5", "POCO F6", "Other"],
-  OnePlus: ["OnePlus 6", "OnePlus 6T", "OnePlus 7", "OnePlus 7 Pro", "OnePlus 8", "OnePlus 8 Pro", "OnePlus 9", "OnePlus 9 Pro", "OnePlus 10 Pro", "OnePlus 11", "OnePlus 12", "OnePlus 13", "OnePlus 14", "OnePlus 15", "Nord", "Nord 2", "Nord 3", "Nord 4", "Other"],
-  "Google Pixel": ["Pixel 4", "Pixel 5", "Pixel 6", "Pixel 6 Pro", "Pixel 7", "Pixel 7 Pro", "Pixel 8", "Pixel 8 Pro", "Pixel 9", "Pixel 9 Pro", "Other"],
-  Tecno: ["Camon 15", "Camon 16", "Camon 17", "Camon 18", "Camon 19", "Camon 20", "Camon 30", "Spark 6", "Spark 7", "Spark 8", "Spark 9", "Spark 10", "Spark 20", "Spark 30", "Phantom X", "Phantom V Fold", "Other"],
-  Infinix: ["Hot 10", "Hot 11", "Hot 12", "Hot 20", "Hot 30", "Hot 40", "Hot 50", "Note 10", "Note 11", "Note 12", "Note 30", "Note 40", "Note 50", "Zero 20", "Zero 30", "Zero 40", "Other"],
-  itel: ["A16", "A23", "A56", "A60", "A70", "P36", "P38", "P40", "P55", "S16", "S17", "S23", "Other"],
-  Huawei: ["P30", "P40", "P50", "P60 Pro", "Mate 30", "Mate 40", "Mate 50", "Nova 7i", "Nova 8i", "Nova 9", "Nova 10", "Nova 11i", "Nova 12i", "Pura 70", "Other"],
-  Nokia: ["5.3", "6.1", "7.2", "G20", "G21", "G42", "XR21", "C30", "C31", "C32", "Other"],
-  Vivo: ["V20", "V21", "V23", "V25", "V27", "V29", "V30", "Y20", "Y21", "Y33", "Y36", "Y100", "Other"],
-  Oppo: ["A15", "A16", "A17", "A57", "A78", "A98", "Reno 8", "Reno 10", "Reno 11", "Reno 12", "Other"],
-  Realme: ["C11", "C21", "C25", "C30", "C33", "C35", "C55", "C67", "C75", "11 Pro", "12 Pro", "Other"],
-  Nothing: ["Phone (1)", "Phone (2)", "Phone (2a)", "Other"],
-  Honor: ["X7", "X8", "X9a", "X9b", "X9c", "Magic5", "Magic6 Lite", "Magic7 Pro", "Other"],
-  Motorola: ["Moto G Power", "Moto G Stylus", "Moto G84", "Moto G85", "Edge 30", "Edge 40", "Edge 50", "Other"],
+  Apple: ["iPhone 17 Pro Max", "iPhone 17 Pro", "iPhone 17 Air", "iPhone 17", "iPhone 16 Pro Max", "iPhone 16 Pro", "iPhone 16 Plus", "iPhone 16", "iPhone 15 Pro Max", "iPhone 15 Pro", "iPhone 15 Plus", "iPhone 15", "iPhone 14 Pro Max", "iPhone 14 Pro", "iPhone 14 Plus", "iPhone 14", "iPhone 13 Pro Max", "iPhone 13 Pro", "iPhone 13 Mini", "iPhone 13", "iPhone 12 Pro Max", "iPhone 12 Pro", "iPhone 12 Mini", "iPhone 12", "iPhone 11 Pro Max", "iPhone 11 Pro", "iPhone 11", "iPhone XS Max", "iPhone XS", "iPhone XR", "iPhone X", "iPhone 8 Plus", "iPhone 8", "iPhone 7 Plus", "iPhone 7", "iPhone 6s Plus", "iPhone 6s", "iPhone 6 Plus", "iPhone 6", "Other"],
+  Samsung: ["Galaxy S26 Ultra", "Galaxy S26+", "Galaxy S26", "Galaxy S25 Ultra", "Galaxy S25+", "Galaxy S25", "Galaxy S24 Ultra", "Galaxy S24+", "Galaxy S24", "Galaxy S23 Ultra", "Galaxy S23+", "Galaxy S23", "Galaxy S22 Ultra", "Galaxy S22+", "Galaxy S22", "Galaxy S21 Ultra", "Galaxy S21+", "Galaxy S21", "Galaxy S20 Ultra", "Galaxy S20+", "Galaxy S20", "Galaxy S10+", "Galaxy S10e", "Galaxy S10", "Galaxy S9+", "Galaxy S9", "Galaxy S8+", "Galaxy S8", "Galaxy S7 Edge", "Galaxy S7", "Galaxy S6 Edge", "Galaxy S6", "Galaxy Z Fold7", "Galaxy Z Fold6", "Galaxy Z Fold5", "Galaxy Z Fold4", "Galaxy Z Fold3", "Galaxy Z Flip7", "Galaxy Z Flip6", "Galaxy Z Flip5", "Galaxy Z Flip4", "Galaxy Z Flip3", "Galaxy A56", "Galaxy A55", "Galaxy A54", "Galaxy A53", "Galaxy A52", "Galaxy A51", "Galaxy A50", "Galaxy A30", "Galaxy A20", "Galaxy A10", "Other"],
+  Xiaomi: ["Xiaomi 15 Ultra", "Xiaomi 15T", "Xiaomi 15", "Xiaomi 14T", "Xiaomi 14", "Xiaomi 13T", "Xiaomi 13", "Xiaomi 12T", "Xiaomi 12", "Mi 11", "Mi 10", "Mi 9", "Redmi Note 15", "Redmi Note 14", "Redmi Note 13", "Redmi Note 12", "Redmi Note 11", "Redmi Note 10", "POCO F7", "POCO F6", "POCO F5", "POCO F4", "POCO F3", "POCO X7", "POCO X6", "POCO X5", "POCO X4", "POCO X3", "Other"],
+  OnePlus: ["OnePlus 16", "OnePlus 15", "OnePlus 14", "OnePlus 13", "OnePlus 12", "OnePlus 11", "OnePlus 10 Pro", "OnePlus 9 Pro", "OnePlus 9", "OnePlus 8 Pro", "OnePlus 8", "OnePlus 7 Pro", "OnePlus 7", "OnePlus 6T", "OnePlus 6", "Nord 5", "Nord 4", "Nord 3", "Nord 2", "Nord", "Other"],
+  "Google Pixel": ["Pixel 10 Pro", "Pixel 10", "Pixel 9 Pro XL", "Pixel 9 Pro", "Pixel 9a", "Pixel 9", "Pixel 8 Pro", "Pixel 8", "Pixel 7 Pro", "Pixel 7", "Pixel 6 Pro", "Pixel 6", "Pixel 5", "Pixel 4", "Other"],
+  Tecno: ["Phantom V Fold 2", "Phantom V Fold", "Phantom X", "Camon 40", "Camon 30", "Camon 20", "Camon 19", "Camon 18", "Camon 17", "Camon 16", "Camon 15", "Spark 40", "Spark 30", "Spark 20", "Spark 10", "Spark 9", "Spark 8", "Spark 7", "Spark 6", "Other"],
+  Infinix: ["Zero 50", "Zero 40", "Zero 30", "Zero 20", "Note 60", "Note 50", "Note 40", "Note 30", "Note 12", "Note 11", "Note 10", "Hot 60", "Hot 50", "Hot 40", "Hot 30", "Hot 20", "Hot 12", "Hot 11", "Hot 10", "Other"],
+  itel: ["S24", "S23", "S17", "S16", "P65", "P55", "P40", "P38", "P36", "A80", "A70", "A60", "A56", "A23", "A16", "Other"],
+  Huawei: ["Pura 80", "Pura 70", "Mate 60", "Mate 50", "Mate 40", "Mate 30", "P60 Pro", "P50", "P40", "P30", "Nova 13", "Nova 12i", "Nova 11i", "Nova 10", "Nova 9", "Nova 8i", "Nova 7i", "Other"],
+  Nokia: ["XR21", "G60", "G42", "G21", "G20", "C42", "C32", "C31", "C30", "7.2", "6.1", "5.3", "Other"],
+  Vivo: ["V50", "V40", "V30", "V29", "V27", "V25", "V23", "V21", "V20", "Y200", "Y100", "Y36", "Y33", "Y21", "Y20", "Other"],
+  Oppo: ["Reno 13", "Reno 12", "Reno 11", "Reno 10", "Reno 8", "A98", "A78", "A57", "A17", "A16", "A15", "Other"],
+  Realme: ["13 Pro", "12 Pro", "11 Pro", "C75", "C67", "C55", "C35", "C33", "C30", "C25", "C21", "C11", "Other"],
+  Nothing: ["Phone (3a)", "Phone (3)", "Phone (2a)", "Phone (2)", "Phone (1)", "Other"],
+  Honor: ["Magic V3", "Magic7 Pro", "Magic7", "Magic6 Lite", "Magic5", "X9c", "X9b", "X9a", "X8", "X7", "Other"],
+  Motorola: ["Edge 60", "Edge 50", "Edge 40", "Edge 30", "Moto G86", "Moto G85", "Moto G84", "Moto G Stylus", "Moto G Power", "Other"],
 };
 
 const FEATURE_PHONE_MODEL_SUGGESTIONS: Record<string, string[]> = {
@@ -1414,6 +1494,9 @@ export default function SellDetailsPage() {
   const [taxonomyChangeModal, setTaxonomyChangeModal] = useState<null | { kind: "category" | "subcategory"; target: string }>(null);
   const [brandModelChangeModal, setBrandModelChangeModal] = useState<null | { key: string; value: string; label: string }>(null);
   const [showUndoBanner, setShowUndoBanner] = useState(false);
+  const [showClearListingModal, setShowClearListingModal] = useState(false);
+  const [listingPhotosUploading, setListingPhotosUploading] = useState(false);
+  const detailsPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const isElectronicsCategory = Boolean(draft && ["Mobile Devices", "Computing & Electronics", "TV & Audio Systems"].includes(draft.category));
   const detectionPrefillTokenRef = useRef<string>("");
   const userTouchedDetailKeysRef = useRef<Set<string>>(new Set());
@@ -1440,6 +1523,21 @@ export default function SellDetailsPage() {
       ].join("|"),
     [draft?.constructionItem, draft?.detectedHints]
   );
+
+  const sanitizedListingImages = useMemo(() => {
+    if (!draft?.images.length) return { urls: [] as string[] };
+    return sanitizeListingImageUrls(draft.images);
+  }, [draft]);
+
+  const listingPhotosOrdered = useMemo(
+    () =>
+      sanitizedListingImages.urls.map((stored) => ({
+        stored,
+        src: resolveListingImageDisplaySrc(stored),
+      })),
+    [sanitizedListingImages.urls]
+  );
+
   const titleChangedAfterAiSuggestion = Boolean(
     draft?.detectedHints &&
       aiSuggestionTitleBaseline &&
@@ -1524,13 +1622,6 @@ export default function SellDetailsPage() {
     }
     setTitleError(nextDraft.title.trim().length < 3 ? "Title must be at least 3 characters." : "");
   }, [category, showToast]);
-
-  useEffect(() => {
-    if (!draft) return;
-    if (draft.images.length > 0) return;
-    showToast("Please upload at least one image in step 1 before opening listing details.", "warning");
-    router.replace("/sell");
-  }, [draft, router, showToast]);
 
   useEffect(() => {
     if (!draft?.category || !subCategory) return;
@@ -1767,6 +1858,131 @@ export default function SellDetailsPage() {
     setDetail("Description", value);
   }
 
+  function setCoverPhotoAt(index: number) {
+    if (!draft || index < 1) return;
+    const { urls } = sanitizeListingImageUrls(draft.images);
+    if (index >= urls.length) return;
+    const chosen = urls[index];
+    const nextImages = [chosen, ...urls.filter((_, i) => i !== index)];
+    const nextDraft = normalizeSellDraftForStorage({ ...draft, images: nextImages });
+    setDraft(nextDraft);
+    try {
+      window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+    } catch {
+      // ignore storage sync issues
+    }
+    showToast("Cover photo updated — the first photo is shown on your ad.", "success");
+  }
+
+  async function removeListingPhotoAt(index: number) {
+    if (!draft || listingPhotosUploading) return;
+    const { urls } = sanitizeListingImageUrls(draft.images);
+    if (index < 0 || index >= urls.length) return;
+    const removed = urls[index];
+    const nextImages = urls.filter((_, i) => i !== index);
+    const uploadId = parseUploadIdFromValue(removed);
+    if (uploadId) {
+      await fetch(`/api/uploads/${uploadId}`, { method: "DELETE" }).catch(() => null);
+    }
+    const nextDraft = normalizeSellDraftForStorage({ ...draft, images: nextImages });
+    setDraft(nextDraft);
+    try {
+      window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+    } catch {
+      // ignore storage sync issues
+    }
+    if (nextImages.length === 0) {
+      showToast("All photos removed. Add at least one before posting.", "warning");
+    }
+  }
+
+  async function uploadAdditionalListingPhotos(files: File[]) {
+    if (!draft || !files.length || listingPhotosUploading) return;
+    const { urls: current } = sanitizeListingImageUrls(draft.images);
+    const remaining = MAX_LISTING_IMAGES - current.length;
+    if (remaining <= 0) {
+      showToast(`You can add up to ${MAX_LISTING_IMAGES} photos per listing.`, "warning");
+      return;
+    }
+    const form = new FormData();
+    let added = 0;
+    let invalidType = false;
+    let oversize = false;
+    for (const file of files) {
+      if (added >= remaining) break;
+      const validationError = validateImageFile(file, { maxBytes: MAX_LISTING_IMAGE_FILE_BYTES });
+      if (validationError) {
+        if (String(file.type || "").toLowerCase().startsWith("image/")) {
+          oversize = true;
+        } else {
+          invalidType = true;
+        }
+        continue;
+      }
+      form.append("files", file);
+      added += 1;
+    }
+    if (!added) {
+      if (oversize) showToast(`Each photo can be up to ${MAX_IMAGE_UPLOAD_MB}MB per image.`, "warning");
+      else if (invalidType) showToast("Only image files are allowed (JPG, PNG, WebP, etc.).", "warning");
+      else showToast("No valid images to add.", "warning");
+      return;
+    }
+    if (files.length > remaining) {
+      showToast(`Only ${added} photo(s) added (max ${MAX_LISTING_IMAGES} per listing).`, "warning");
+    } else if (oversize || invalidType) {
+      if (oversize) showToast(`Each photo can be up to ${MAX_IMAGE_UPLOAD_MB}MB per image.`, "warning");
+      if (invalidType) showToast("Some files were skipped (images only).", "warning");
+    }
+    setListingPhotosUploading(true);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        showToast(payload.error || "Image upload failed. Please try again.", "error");
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { uploads?: Array<{ id?: string; url?: string }> };
+      const uploads = Array.isArray(data.uploads) ? data.uploads : [];
+      const newRefs = uploads.map((item) => item.id || item.url).filter(Boolean) as string[];
+      if (!newRefs.length) {
+        showToast("Upload did not return image references.", "error");
+        return;
+      }
+      const merged = [...current, ...newRefs].slice(0, MAX_LISTING_IMAGES);
+      const nextDraft = normalizeSellDraftForStorage({ ...draft, images: merged });
+      setDraft(nextDraft);
+      try {
+        window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+      } catch {
+        // ignore
+      }
+      showToast("Photo(s) added.", "success");
+    } finally {
+      setListingPhotosUploading(false);
+    }
+  }
+
+  function handleDetailsPhotoFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const list = e.target.files;
+    e.target.value = "";
+    if (!list?.length) return;
+    const picked: File[] = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const f = list.item(i);
+      if (f) picked.push(f);
+    }
+    void uploadAdditionalListingPhotos(picked);
+  }
+
+  function confirmClearEntireListing() {
+    clearAllSellProgress();
+    setShowClearListingModal(false);
+    setShowUndoBanner(false);
+    showToast("Everything for this listing was removed.", "success");
+    router.push("/sell");
+  }
+
   function setTitleValue(value: string) {
     const nextTitle = value.slice(0, 70);
     setDraft((prev) => {
@@ -2000,7 +2216,10 @@ export default function SellDetailsPage() {
   }
 
   const validTitle = Boolean(draft?.title.trim().length && draft.title.trim().length >= 3);
-  const canPost = Boolean(draft?.title && draft?.category && draft?.city && draft?.area && subCategory && validTitle);
+  const hasListingPhoto = sanitizedListingImages.urls.length > 0;
+  const canPost = Boolean(
+    draft?.title && draft?.category && draft?.city && draft?.area && subCategory && validTitle && hasListingPhoto
+  );
 
   async function submitListing() {
     if (!draft || !canPost) return;
@@ -2069,7 +2288,6 @@ export default function SellDetailsPage() {
 
   if (!category) return <PageState text="Select a category first from the previous step." />;
   if (!draft) return <PageState text="Please complete the first step of your listing before continuing." />;
-  if (draft.images.length === 0) return <PageState text="Please upload at least one image in step 1 before continuing." />;
   if (!user) return <PageState text="Please sign in to post a listing." />;
 
   return (
@@ -2153,9 +2371,41 @@ export default function SellDetailsPage() {
           </div>
         </div>
       ) : null}
+      {showClearListingModal ? (
+        <div
+          className="sellModalOverlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="clear-listing-title"
+          onClick={() => setShowClearListingModal(false)}
+        >
+          <div className="sellModalCard sellModalCardWarn" onClick={(e) => e.stopPropagation()}>
+            <h2 id="clear-listing-title" className="sellModalTitle">
+              Erase this entire listing?
+            </h2>
+            <p className="sellModalBody sellModalBodyStrong">
+              If you continue, <strong>nothing from this ad will be kept</strong>: the title, category, location, every
+              detail field, all uploaded photos, and any saved draft on this device will be removed. You cannot undo
+              this.
+            </p>
+            <p className="sellModalBody sellModalBodyMuted">You will return to the first step with an empty form.</p>
+            <div className="sellModalActions">
+              <button type="button" className="sellModalBtn sellModalBtnGhost" onClick={() => setShowClearListingModal(false)}>
+                Cancel — keep my listing
+              </button>
+              <button type="button" className="sellModalBtn sellModalBtnDanger" onClick={confirmClearEntireListing}>
+                Yes, erase everything
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="sellHeaderBar">
         <div className="sellHeaderInner">
           <h1 className="sellHeaderTitle">Post ad</h1>
+          <button type="button" className="sellClearBtn" onClick={() => setShowClearListingModal(true)}>
+            Clear
+          </button>
         </div>
       </div>
 
@@ -2200,6 +2450,83 @@ export default function SellDetailsPage() {
               ) : null}
               {titleError ? <p className="sellInlineError">{titleError}</p> : null}
             </div>
+
+            <section className="sellSection sellListingPhotosDock" aria-label="Photos for this listing">
+              <div className="sellListingPhotosHeader">
+                <h3 className="sellListingPhotosTitle">Your listing photos</h3>
+                <p className="sellListingPhotosHint">
+                  {listingPhotosOrdered.length === 0
+                    ? "Add at least one photo before posting. You can also return to step 1 to change images."
+                    : listingPhotosOrdered.length > 1
+                      ? "Pinned below the site header while you scroll. × removes a photo; + adds more (up to 10). Use “Use as cover” to set the main image."
+                      : "Pinned below the site header while you scroll. × removes this photo; + adds more when needed."}
+                </p>
+              </div>
+              <div className="sellListingPhotosScroller" role="list">
+                {listingPhotosOrdered.map((photo, index) => (
+                  <figure
+                    key={`${photo.stored}-${index}`}
+                    className={`sellListingPhotoThumbWrap${index === 0 ? " isCover" : ""}`}
+                    role="listitem"
+                  >
+                    {index === 0 ? (
+                      <span className="sellListingPhotoCoverBadge" title="Shown first on your ad">
+                        Cover
+                      </span>
+                    ) : null}
+                    <Image
+                      src={photo.src}
+                      alt={index === 0 ? "Cover listing photo" : `Listing photo ${index + 1}`}
+                      className="sellListingPhotoThumb"
+                      fill
+                      sizes="104px"
+                      unoptimized
+                    />
+                    <button
+                      type="button"
+                      className="sellPhotoRemove"
+                      aria-label={`Remove photo ${index + 1}`}
+                      title={listingPhotosUploading ? "Wait for upload to finish" : "Remove this photo"}
+                      disabled={listingPhotosUploading}
+                      onClick={() => void removeListingPhotoAt(index)}
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                    {listingPhotosOrdered.length > 1 && index > 0 ? (
+                      <button type="button" className="sellListingPhotoCoverBtn" onClick={() => setCoverPhotoAt(index)}>
+                        Use as cover
+                      </button>
+                    ) : null}
+                  </figure>
+                ))}
+                {listingPhotosOrdered.length < MAX_LISTING_IMAGES ? (
+                  <div className="sellListingPhotoAddTile" role="listitem">
+                    <button
+                      type="button"
+                      className="sellListingPhotoAddBtn"
+                      aria-label="Add listing photos"
+                      title={listingPhotosUploading ? "Uploading…" : "Add photos"}
+                      disabled={listingPhotosUploading}
+                      onClick={() => detailsPhotoInputRef.current?.click()}
+                    >
+                      <span className="sellListingPhotoAddPlus" aria-hidden="true">
+                        +
+                      </span>
+                      <span className="sellListingPhotoAddLabel">Add</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <input
+                ref={detailsPhotoInputRef}
+                type="file"
+                className="sellFileInput"
+                accept="image/*"
+                multiple
+                onChange={handleDetailsPhotoFilesChange}
+              />
+              {listingPhotosUploading ? <p className="sellListingPhotosUploading">Uploading photos…</p> : null}
+            </section>
 
             {draft.category !== "Real Estate" ? (
               <DeliveryFields

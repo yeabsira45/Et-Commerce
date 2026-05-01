@@ -7,6 +7,8 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
+!.env.example
 
 # Next.js build output
 .next/
@@ -22,3 +24,6 @@ yarn-error.log*
 
 # system files
 .DS_Store
+
+# runtime user uploads
+private/uploads/

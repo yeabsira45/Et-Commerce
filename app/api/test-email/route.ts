@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { sendEmail, verifyEmailTransport } from "../lib/email";
 import { getSessionUser } from "@/lib/auth";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function POST(req: Request) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+    }
+
+    const ip = getClientIp(req);
+    if (!(await enforceRateLimit(`test_email:${ip}`, 5, 60_000))) {
+      return NextResponse.json({ success: false, error: "Too many requests" }, { status: 429 });
+    }
+
     const user = await getSessionUser();
     if (!user || user.role !== "ADMIN") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
@@ -25,7 +35,6 @@ export async function GET() {
     return NextResponse.json({ success: true, message: `Test email sent to ${user.email}` }, { status: 200 });
   } catch (error) {
     console.error(error);
-    const message = error instanceof Error ? error.message : "Unknown email error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Email test failed" }, { status: 500 });
   }
 }

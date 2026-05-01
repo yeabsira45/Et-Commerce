@@ -11,6 +11,7 @@ import { BEAUTY_GENDER_OPTIONS, BEAUTY_SUBCATEGORIES, getBeautyBrands, getBeauty
 import { Avatar } from "@/components/Avatar";
 import { useAppContext } from "@/components/AppContext";
 import { useToast } from "@/components/ToastProvider";
+import { SearchableSelect } from "@/components/form/SearchableSelect";
 
 type Listing = {
   id: string;
@@ -93,7 +94,24 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
     setForcedSubcategory(initialSubcategory || "");
   }, [initialSubcategory]);
 
-  const categoryOptions = useMemo(() => categories.map((c) => c.name), []);
+  const categorySelectOptions = useMemo(
+    () => [{ value: "", label: "All categories" }, ...categories.map((c) => ({ value: c.name, label: c.name }))],
+    [],
+  );
+
+  const conditionSelectOptions = useMemo(
+    () => [
+      { value: "", label: "Any condition" },
+      { value: "NEW", label: "New" },
+      { value: "USED", label: "Used" },
+    ],
+    [],
+  );
+
+  const beautySubcategorySelectOptions = useMemo(
+    () => [{ value: "", label: "All beauty types" }, ...BEAUTY_SUBCATEGORIES.map((item) => ({ value: item, label: item }))],
+    [],
+  );
 
   const hasActiveFilters = Boolean(
     category ||
@@ -344,14 +362,9 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
             </div>
           )}
         </div>
-        <select className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">All categories</option>
-          {categoryOptions.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+        <div className="searchListingSelect">
+          <SearchableSelect label="Category" value={category} placeholder="All categories" options={categorySelectOptions} onChange={setCategory} />
+        </div>
         <input
           className="searchInput"
           placeholder="Location"
@@ -400,27 +413,26 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
       {["Mobile Devices", "Computing & Electronics", "TV & Audio Systems"].includes(category) ? (
         <div className="searchFilters" style={{ marginTop: 10 }}>
           <MultiToggle label="Brand" options={["Apple", "Samsung", "Xiaomi", "Lenovo", "HP", "Dell", "Sony", "LG", "Tecno", "Infinix"]} values={brands} onChange={setBrands} />
-          <select className="select" value={condition} onChange={(e) => setCondition(e.target.value)}>
-            <option value="">Any condition</option>
-            <option value="NEW">New</option>
-            <option value="USED">Used</option>
-          </select>
+          <div className="searchListingSelect">
+            <SearchableSelect label="Condition" value={condition} placeholder="Any condition" options={conditionSelectOptions} onChange={setCondition} />
+          </div>
         </div>
       ) : null}
       {category === "Beauty & Personal Care" ? (
         <div className="searchFilters" style={{ marginTop: 10 }}>
-          <select className="select" value={beautySubcategory} onChange={(e) => {
-            setBeautySubcategory(e.target.value);
-            setBeautyBrands([]);
-            setBeautyTypes([]);
-          }}>
-            <option value="">All beauty types</option>
-            {BEAUTY_SUBCATEGORIES.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
+          <div className="searchListingSelect">
+            <SearchableSelect
+              label="Beauty type"
+              value={beautySubcategory}
+              placeholder="All beauty types"
+              options={beautySubcategorySelectOptions}
+              onChange={(value) => {
+                setBeautySubcategory(value);
+                setBeautyBrands([]);
+                setBeautyTypes([]);
+              }}
+            />
+          </div>
           <MultiToggle label="Brand" options={getBeautyBrands(beautySubcategory || "Skincare").filter((item) => item !== "Other")} values={beautyBrands} onChange={setBeautyBrands} />
           <MultiToggle label="Product Type" options={getBeautyProductTypes(beautySubcategory || "Skincare").filter((item) => item !== "Other")} values={beautyTypes} onChange={setBeautyTypes} />
           <MultiToggle label="Gender" options={BEAUTY_GENDER_OPTIONS} values={beautyGenders} onChange={setBeautyGenders} />

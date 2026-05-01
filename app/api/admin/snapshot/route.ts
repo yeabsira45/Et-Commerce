@@ -55,15 +55,6 @@ export async function GET(req: Request) {
         ? [{ price: "desc" }, { createdAt: "desc" }]
         : [{ title: "asc" }, { createdAt: "desc" }];
 
-    console.info("[admin.snapshot] access", {
-      adminUserId: user.id,
-      ip,
-      userPage,
-      listingPage,
-      pageSize,
-      at: new Date().toISOString(),
-    });
-
     const [dbUsers, dbListings, userTotal, listingTotal] = await Promise.all([
       prisma.user.findMany({
         where: userWhere,

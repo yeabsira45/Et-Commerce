@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { createAdminAuditLog } from "@/lib/adminAudit";
 
 type Params = { params: { id: string } };
+const MIN_REJECTION_REASON_LENGTH = 12;
 
 export async function POST(req: Request, { params }: Params) {
   const user = await getSessionUser();
@@ -21,6 +22,12 @@ export async function POST(req: Request, { params }: Params) {
   }
   if (action === "reject" && !reason) {
     return NextResponse.json({ error: "Rejection reason is required" }, { status: 400 });
+  }
+  if (action === "reject" && reason.length < MIN_REJECTION_REASON_LENGTH) {
+    return NextResponse.json(
+      { error: `Rejection reason must be at least ${MIN_REJECTION_REASON_LENGTH} characters.` },
+      { status: 400 }
+    );
   }
 
   const existing = await prisma.listing.findUnique({
@@ -67,6 +74,7 @@ export async function POST(req: Request, { params }: Params) {
       data: {
         listingId: existing.id,
         action: action === "approve" ? "listing_approved" : "listing_rejected",
+        reason: action === "reject" ? reason : null,
       },
     },
   });

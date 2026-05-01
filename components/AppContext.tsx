@@ -121,7 +121,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    const res = await fetch("/api/auth/me");
+    const res = await fetch("/api/auth/me", { cache: "no-store" });
     if (!res.ok) return;
     const data = await res.json();
     if (data.user) {

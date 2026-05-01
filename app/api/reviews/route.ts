@@ -36,7 +36,10 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
-  const { vendorId, rating, comment } = await req.json();
+  const body = await req.json().catch(() => ({} as { vendorId?: unknown; rating?: unknown; comment?: unknown }));
+  const vendorId = typeof body.vendorId === "string" ? body.vendorId.trim() : "";
+  const rating = body.rating;
+  const comment = typeof body.comment === "string" ? body.comment.trim() : "";
   const numericRating = Number(rating);
   if (!vendorId || !Number.isFinite(numericRating)) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });

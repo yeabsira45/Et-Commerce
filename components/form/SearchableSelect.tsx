@@ -21,6 +21,15 @@ export type CategorySearchInsight = {
   payload?: unknown;
 };
 
+function optionMatchesQuery(label: string, queryRaw: string): boolean {
+  const q = queryRaw.trim().toLowerCase();
+  if (!q) return true;
+  const hay = label.toLowerCase();
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+  return tokens.every((t) => hay.includes(t));
+}
+
 type Props = {
   label: string;
   value: string;
@@ -54,6 +63,7 @@ export function SearchableSelect({
   const [closing, setClosing] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const optionsSignature = useMemo(() => {
     if (groups) {
@@ -119,6 +129,14 @@ export function SearchableSelect({
   }, [open, renderDropdown]);
 
   useEffect(() => {
+    if (!open || !renderDropdown) return;
+    const id = requestAnimationFrame(() => {
+      searchInputRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open, renderDropdown]);
+
+  useEffect(() => {
     setQuery("");
     setOpen(false);
     setRenderDropdown(false);
@@ -136,12 +154,11 @@ export function SearchableSelect({
   }, [query, resolveCategoryInsights]);
 
   const filteredGroups = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
     const source = groups || [{ label: "", options: options || [] }];
     return source
       .map((group) => ({
         ...group,
-        options: group.options.filter((option) => option.label.toLowerCase().includes(normalized)),
+        options: group.options.filter((option) => optionMatchesQuery(option.label, query)),
       }))
       .filter((group) => group.options.length > 0);
   }, [groups, options, query]);
@@ -191,12 +208,29 @@ export function SearchableSelect({
       {renderDropdown ? (
         <div className={`sellDropdown sellDropdownModern ${closing ? "isClosing" : ""}`} role="listbox" aria-label={label}>
           <div className="sellDropdownSearchWrap">
+            <span className="sellDropdownSearchIcon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <path d="M16.5 16.5 21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </span>
             <input
+              ref={searchInputRef}
               className="sellDropdownSearch"
+              type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={searchPlaceholder}
               autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-label={`Filter ${label} options`}
+              enterKeyHint="search"
             />
           </div>
           {insights.length > 0 ? (

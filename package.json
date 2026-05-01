@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "node server.js",
     "lint": "next lint",
-    "test:smoke": "node scripts/smoke-integration.mjs"
+    "test:smoke": "node scripts/smoke-integration.mjs",
+    "cleanup:uploads": "node scripts/cleanup-orphan-uploads.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
@@ -16,6 +17,7 @@
     "nodemailer": "^8.0.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "sharp": "^0.34.5",
     "ws": "^8.17.0"
   },
   "devDependencies": {

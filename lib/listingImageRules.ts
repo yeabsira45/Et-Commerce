@@ -17,6 +17,15 @@ export type SanitizedListingImages = {
  * Drops data URLs, enforces max count. For remote URLs we cannot know byte size in the browser
  * without fetching; uploads are enforced separately on the file picker.
  */
+/** Turn a draft-stored upload id or `/api/uploads/…` reference into a browser-usable URL. */
+export function resolveListingImageDisplaySrc(stored: string): string {
+  const t = stored.trim();
+  if (!t) return "";
+  if (/^https?:\/\//i.test(t)) return t;
+  if (t.startsWith("/")) return t;
+  return `/api/uploads/${t}`;
+}
+
 export function sanitizeListingImageUrls(urls: string[]): SanitizedListingImages {
   const warnings: string[] = [];
   const next: string[] = [];

@@ -11,7 +11,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
-    const { identifier, password } = await req.json();
+    const body = await req.json().catch(() => ({} as { identifier?: unknown; password?: unknown }));
+    const identifier = String(body.identifier || "").trim();
+    const password = String(body.password || "");
     if (!identifier || !password) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }

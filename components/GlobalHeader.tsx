@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -100,6 +100,7 @@ export function GlobalHeader() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [afterAuthPath, setAfterAuthPath] = useState<string | null>(null);
   const [animateBadge, setAnimateBadge] = useState(false);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
   const { user, unreadMessages } = useAppContext();
 
@@ -140,7 +141,7 @@ export function GlobalHeader() {
                   return;
                 }
                 window.scrollTo({ top: 0, behavior: "auto" });
-                router.push("/messages", { scroll: true });
+                router.push("/messages");
               }}
             />
             <TooltipIconButton label="Notifications" kind="bell" onClick={() => setNotificationsOpen(true)} />
@@ -149,10 +150,15 @@ export function GlobalHeader() {
               kind="user"
               avatarName={user?.fullName || user?.username}
               avatarUrl={user?.vendor?.profileImageUrl}
-              onClick={() => setVendorOpen(true)}
+              onClick={() => setVendorOpen((prev) => !prev)}
             />
 
-            <button type="button" className="pillBtn vendorBtn" onClick={() => setVendorOpen(true)}>
+            <button
+              ref={accountButtonRef}
+              type="button"
+              className="pillBtn vendorBtn"
+              onClick={() => setVendorOpen((prev) => !prev)}
+            >
               Account
             </button>
             <button type="button" className="pillBtn vendorBtn" onClick={() => setFeedbackOpen(true)}>
@@ -181,6 +187,7 @@ export function GlobalHeader() {
         open={vendorOpen}
         onClose={() => setVendorOpen(false)}
         user={user}
+        anchorRef={accountButtonRef}
         onLogin={() => {
           setAuthMode("login");
           setAfterAuthPath(null);

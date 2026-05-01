@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const payload = await req.json();
+    const payload = await req.json().catch(() => ({} as { listingId?: unknown; message?: unknown }));
     const listingId = typeof payload.listingId === "string" ? payload.listingId : "";
     const message = typeof payload.message === "string" ? payload.message.trim() : "";
     if (!listingId || !message) {

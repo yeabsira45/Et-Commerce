@@ -14,7 +14,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Too many sign-up attempts. Please wait a minute." }, { status: 429 });
     }
 
-    const { fullName, email, password, storeName, city, area, street, phone } = await req.json();
+    const body = await req.json().catch(
+      () =>
+        ({} as {
+          fullName?: unknown;
+          email?: unknown;
+          password?: unknown;
+          storeName?: unknown;
+          city?: unknown;
+          area?: unknown;
+          street?: unknown;
+          phone?: unknown;
+        })
+    );
+    const fullName = String(body.fullName || "").trim();
+    const email = String(body.email || "").trim();
+    const password = String(body.password || "");
+    const storeName = String(body.storeName || "").trim();
+    const city = String(body.city || "").trim();
+    const area = String(body.area || "").trim();
+    const street = String(body.street || "").trim();
+    const phone = String(body.phone || "").trim();
+
     if (!fullName || !email || !password || !city) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
@@ -24,15 +45,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedPhone = formatPhoneForStorage(String(phone ?? ""));
+    const normalizedEmail = email.toLowerCase();
+    const normalizedPhone = formatPhoneForStorage(phone);
     if (!normalizedPhone) {
       return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
     }
     if (!isValidStoredEthiopianPhone(normalizedPhone)) {
       return NextResponse.json({ error: "Use a valid Ethiopian phone number." }, { status: 400 });
     }
-    const resolvedStoreName = deriveStoreName(String(fullName), storeName);
+    const resolvedStoreName = deriveStoreName(fullName, storeName);
 
     const existingEmail = await prisma.user.findFirst({
       where: { email: normalizedEmail },
@@ -48,7 +69,7 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await hashPassword(password);
-    const username = await uniqueUsername(String(fullName).trim());
+    const username = await uniqueUsername(fullName);
     const finalSlug = await uniqueVendorSlug(resolvedStoreName);
 
     const user = await prisma.user.create({

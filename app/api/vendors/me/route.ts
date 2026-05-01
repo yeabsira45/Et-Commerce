@@ -30,9 +30,30 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  const body = await req.json();
-  const { fullName, email, storeName, city, area, street, phone, profileImageUploadId, removeProfileImage } = body;
-  const normalizedPhone = formatPhoneForStorage(String(phone ?? ""));
+  const body = await req.json().catch(
+    () =>
+      ({} as {
+        fullName?: unknown;
+        email?: unknown;
+        storeName?: unknown;
+        city?: unknown;
+        area?: unknown;
+        street?: unknown;
+        phone?: unknown;
+        profileImageUploadId?: unknown;
+        removeProfileImage?: unknown;
+      })
+  );
+  const fullName = String(body.fullName || "").trim();
+  const email = String(body.email || "").trim().toLowerCase();
+  const storeName = String(body.storeName || "").trim();
+  const city = String(body.city || "").trim();
+  const area = String(body.area || "").trim();
+  const street = String(body.street || "").trim();
+  const phone = String(body.phone || "").trim();
+  const profileImageUploadId = typeof body.profileImageUploadId === "string" ? body.profileImageUploadId : "";
+  const removeProfileImage = body.removeProfileImage === true;
+  const normalizedPhone = formatPhoneForStorage(phone);
 
   if (!fullName || !email || !city || !normalizedPhone) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

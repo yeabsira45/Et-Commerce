@@ -48,7 +48,7 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   try {
-    const payload = await req.json();
+    const payload = await req.json().catch(() => ({} as { body?: unknown }));
     const body = typeof payload.body === "string" ? payload.body.trim() : "";
     if (!body) {
       return NextResponse.json({ error: "Message body required" }, { status: 400 });

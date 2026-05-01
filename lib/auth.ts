@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "etcom_session";
 const SESSION_DAYS = 14;
+const ALLOWED_ROLES = new Set(["VENDOR", "ADMIN"]);
 
 export function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -52,6 +53,7 @@ export async function getSessionUser() {
     include: { user: { include: { vendor: true } } },
   });
   if (!session || session.expiresAt < new Date()) return null;
+  if (!ALLOWED_ROLES.has(String(session.user.role))) return null;
   if (session.user.bannedAt) return null;
   return session.user;
 }

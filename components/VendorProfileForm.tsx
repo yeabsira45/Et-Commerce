@@ -25,7 +25,7 @@ export type VendorProfileFormProps = {
 };
 
 export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFormProps) {
-  const { user } = useAppContext();
+  const { user, refreshUser } = useAppContext();
   const showToast = useToast();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -41,6 +41,7 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
   const [profilePreviewUrl, setProfilePreviewUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const selectedCityNode = ETHIOPIAN_CITIES.find((item) => item.value === city);
   const effectiveStoreName = useMemo(() => {
@@ -59,8 +60,6 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
       if (nextUser) {
         setFullName(nextUser.username || "");
         setEmail(nextUser.email || "");
-        setProfileImageUrl(nextUser.vendor?.profileImageUrl || "");
-        setProfileImageUploadId(nextUser.vendor?.profileImageUploadId || "");
       }
       if (vendor) {
         setStoreName(vendor.storeName || "");
@@ -69,6 +68,8 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
         setSubcity(vendor.area || "");
         setArea(vendor.street || "");
         setPhone(formatStoredPhoneToLocalDigits(vendor.phone || ""));
+        setProfileImageUrl(vendor.profileImageUrl || "");
+        setProfileImageUploadId(vendor.profileImageUploadId || "");
       }
     }
     if (user) load();
@@ -104,6 +105,12 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
       active = false;
     };
   }, [effectiveStoreName]);
+
+  useEffect(() => {
+    if (!lastUpdatedAt) return;
+    const timer = window.setTimeout(() => setLastUpdatedAt(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [lastUpdatedAt]);
 
   if (!user) {
     return (
@@ -179,12 +186,23 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
       showToast(dashboardToast.profileSaveFailed, "error");
       return;
     }
+    const saved = (await res.json().catch(() => ({}))) as {
+      vendor?: { profileImageUrl?: string | null; profileImageUploadId?: string | null };
+    };
     const hadAvatarQueued = Boolean(profileImageFile);
     if (profileImageFile) {
       setProfileImageUploadId(nextProfileImageUploadId);
       setProfileImageFile(null);
     }
+    if (saved.vendor?.profileImageUploadId) {
+      setProfileImageUploadId(saved.vendor.profileImageUploadId);
+    }
+    if (typeof saved.vendor?.profileImageUrl === "string") {
+      setProfileImageUrl(saved.vendor.profileImageUrl);
+    }
+    await refreshUser().catch(() => null);
     setSaving(false);
+    setLastUpdatedAt(new Date());
     showToast(hadAvatarQueued ? dashboardToast.profileSavedWithImage : dashboardToast.profileSaved);
     onSaved?.();
   }
@@ -207,6 +225,8 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
         removeProfileImage: true,
       }),
     });
+    await refreshUser().catch(() => null);
+    setLastUpdatedAt(new Date());
     showToast(dashboardToast.profileImageRemoved);
     onSaved?.();
   }
@@ -231,7 +251,7 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
                 </div>
                 <div>
                   <div className="vendorAvatarPreviewName">{storeName.trim() || `${fullName.trim() || "Vendor"}'s Store`}</div>
-                  <p className="sellFieldHint">Upload a vendor photo to use everywhere across listings, chat, and your public vendor page. Image files only, max {MAX_IMAGE_UPLOAD_MB}MB.</p>
+                  <p className="sellFieldHint">Upload a vendor photo to use everywhere across listings, chat, and your public vendor page. Image files only, up to {MAX_IMAGE_UPLOAD_MB}MB per image.</p>
                 </div>
                 <div className="modalAvatarActions">
                   <label className="modalUploadBtn">
@@ -342,6 +362,7 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
           </div>
 
           {error ? <p className="modalError">{error}</p> : null}
+          {lastUpdatedAt ? <p className="modalSub">Last updated just now.</p> : null}
 
           <button type="submit" className="sellNextBtn" disabled={!canSubmit || saving}>
             {saving ? "Saving..." : "Save profile"}

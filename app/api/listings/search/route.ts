@@ -64,16 +64,17 @@ function passesRange(value: number | null, min: number | undefined, max: number 
 }
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const cacheKey = searchParams.toString();
-  const cached = searchCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload, {
-      headers: {
-        "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60",
-      },
-    });
-  }
+  try {
+    const { searchParams } = new URL(req.url);
+    const cacheKey = searchParams.toString();
+    const cached = searchCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.payload, {
+        headers: {
+          "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60",
+        },
+      });
+    }
   const page = Math.max(1, Number(searchParams.get("page") || "1"));
   const pageSize = Math.min(20, Math.max(10, Number(searchParams.get("pageSize") || "20")));
   const skip = (page - 1) * pageSize;
@@ -286,15 +287,21 @@ export async function GET(req: Request) {
     })),
   };
 
-  if (searchCache.size >= SEARCH_CACHE_MAX) {
-    const firstKey = searchCache.keys().next().value;
-    if (typeof firstKey === "string") searchCache.delete(firstKey);
-  }
-  searchCache.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, payload });
+    if (searchCache.size >= SEARCH_CACHE_MAX) {
+      const firstKey = searchCache.keys().next().value;
+      if (typeof firstKey === "string") searchCache.delete(firstKey);
+    }
+    searchCache.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, payload });
 
-  return NextResponse.json(payload, {
-    headers: {
-      "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60",
-    },
-  });
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60",
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      { page: 1, pageSize: 20, total: 0, listings: [], error: "Failed to search listings" },
+      { status: 500 }
+    );
+  }
 }

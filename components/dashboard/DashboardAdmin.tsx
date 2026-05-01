@@ -352,6 +352,10 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
         showToast("Rejection reason is required.", "warning");
         return;
       }
+      if (reason.length < 12) {
+        showToast("Rejection reason must be at least 12 characters.", "warning");
+        return;
+      }
     }
     const res = await fetch(`/api/admin/listings/${id}/moderate`, {
       method: "POST",
@@ -409,7 +413,7 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
   }
 
   async function checkEmailHealth() {
-    const res = await fetch("/api/test-email", { cache: "no-store" }).catch(() => null);
+    const res = await fetch("/api/test-email", { method: "POST", cache: "no-store" }).catch(() => null);
     if (!res?.ok) {
       const payload = (await res?.json().catch(() => ({}))) as { error?: string };
       showToast(payload.error || "SMTP check failed.", "error");

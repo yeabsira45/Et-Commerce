@@ -5,6 +5,7 @@ import { AppProvider } from "@/components/AppContext";
 import { ToastProvider } from "@/components/ToastProvider";
 import { FloatingSellButton } from "@/components/FloatingSellButton";
 import { GlobalHeader } from "@/components/GlobalHeader";
+import { NavigationScrollManager } from "@/components/NavigationScrollManager";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
 
@@ -43,6 +44,7 @@ export default function RootLayout({
         <AppProvider>
           <ToastProvider>
             <div className="appShell">
+              <NavigationScrollManager />
               <GlobalHeader />
               <main className="appMain">{children}</main>
               <FloatingSellButton />

@@ -131,7 +131,7 @@ export default function SellPage() {
       showToast(`You can add up to ${MAX_LISTING_IMAGES} photos per listing.`, "warning");
     }
     if (oversize) {
-      showToast(`Each photo must be ${MAX_IMAGE_UPLOAD_MB}MB or smaller.`, "warning");
+      showToast(`Each photo can be up to ${MAX_IMAGE_UPLOAD_MB}MB per image.`, "warning");
     }
     if (invalidType) {
       showToast("Only image files are allowed (JPG, PNG, WebP, etc.).", "warning");
@@ -162,6 +162,12 @@ export default function SellPage() {
       showToast(payload.error || "Image upload failed. Please try again.", "error");
     }
     setUploading(false);
+  }
+
+  function removePhotoAt(index: number) {
+    if (uploading) return;
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoUrls((prev) => prev.filter((_, i) => i !== index));
   }
 
   useEffect(() => {
@@ -587,8 +593,18 @@ export default function SellPage() {
                 {photoPreviews.length > 0 ? (
                   <div className="sellPhotoPreviewGrid">
                     {photoPreviews.map((preview, index) => (
-                      <div key={preview} className="sellPhotoPreviewCard">
+                      <div key={`${photos[index]?.name}-${index}-${preview.slice(-12)}`} className="sellPhotoPreviewCard">
                         <Image src={preview} alt={photos[index]?.name || `Upload ${index + 1}`} className="sellPhotoPreview" fill />
+                        <button
+                          type="button"
+                          className="sellPhotoRemove"
+                          aria-label={`Remove photo ${index + 1}`}
+                          title={uploading ? "Wait for upload to finish" : "Remove this photo"}
+                          disabled={uploading}
+                          onClick={() => removePhotoAt(index)}
+                        >
+                          <span aria-hidden="true">×</span>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -605,7 +621,7 @@ export default function SellPage() {
                 ) : null}
 
                 {uploading ? <p className="sellFormats">Uploading photos...</p> : null}
-                <p className="sellFormats">Supported formats: image files only (JPG, PNG, WebP, etc.), max {MAX_IMAGE_UPLOAD_MB}MB each.</p>
+                <p className="sellFormats">Supported formats: image files only (JPG, PNG, WebP, etc.), up to {MAX_IMAGE_UPLOAD_MB}MB per image.</p>
               </div>
 
               <button type="submit" className="sellNextBtn" disabled={!canProceed}>

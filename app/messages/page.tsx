@@ -84,7 +84,6 @@ export default function MessagesPage() {
   const [sendingImage, setSendingImage] = useState(false);
   const [threadReloadNonce, setThreadReloadNonce] = useState(0);
   const threadRef = useRef<HTMLDivElement | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
   const previousConversationIdRef = useRef<string | null>(null);
   const previousMessageCountRef = useRef(0);
@@ -220,6 +219,12 @@ export default function MessagesPage() {
     return () => unsub();
   }, [activeConversation?.id, loadConversations, subscribeSocket]);
 
+  function scrollThreadToBottom(behavior: ScrollBehavior) {
+    const thread = threadRef.current;
+    if (!thread) return;
+    thread.scrollTo({ top: thread.scrollHeight, behavior });
+  }
+
   useEffect(() => {
     const activeThread = threadRef.current;
     if (!activeThread) return;
@@ -235,7 +240,7 @@ export default function MessagesPage() {
       stickToBottomRef.current = true;
       setShowNewMessageIndicator(false);
       requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "auto" });
+        scrollThreadToBottom("auto");
       });
       return;
     }
@@ -243,7 +248,7 @@ export default function MessagesPage() {
     if (messageCountIncreased) {
       if (stickToBottomRef.current || fromCurrentUser) {
         requestAnimationFrame(() => {
-          bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+          scrollThreadToBottom("smooth");
         });
         setShowNewMessageIndicator(false);
       } else if (!fromCurrentUser) {
@@ -500,7 +505,6 @@ export default function MessagesPage() {
                     </div>
                   );
                 })}
-                <div ref={bottomRef} />
               </div>
               {showNewMessageIndicator ? (
                 <div className="messagesNewIndicatorWrap">
@@ -510,7 +514,7 @@ export default function MessagesPage() {
                     onClick={() => {
                       stickToBottomRef.current = true;
                       setShowNewMessageIndicator(false);
-                      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                      scrollThreadToBottom("smooth");
                     }}
                   >
                     New message
