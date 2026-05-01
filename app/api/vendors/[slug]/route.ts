@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { uploadApiPath } from "@/lib/uploadSecurity";
+import { trustBadges } from "@/lib/trust";
 
 type Params = { params: { slug: string } };
 
@@ -29,6 +30,15 @@ export async function GET(_req: Request, { params }: Params) {
       storeName: vendor.storeName,
       city: vendor.city,
       area: vendor.area,
+      trustScore: vendor.trustScore,
+      trustBadges: trustBadges({
+        phoneVerificationStatus: vendor.phoneVerificationStatus,
+        idVerificationStatus: vendor.idVerificationStatus,
+        addressVerificationStatus: vendor.addressVerificationStatus,
+      }),
+      phoneVerificationStatus: vendor.phoneVerificationStatus,
+      idVerificationStatus: vendor.idVerificationStatus,
+      addressVerificationStatus: vendor.addressVerificationStatus,
       userId: vendor.userId,
       createdAt: vendor.createdAt,
       profileImageUrl: vendor.profileImageUploadId ? uploadApiPath(vendor.profileImageUploadId) : null,

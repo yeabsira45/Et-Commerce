@@ -4,9 +4,16 @@ import { createSessionToken, hashPassword, hashToken, setSessionCookie } from "@
 import { deriveStoreName, uniqueUsername, uniqueVendorSlug } from "@/lib/vendorNaming";
 import { validatePassword } from "@/lib/passwordRules";
 import { uploadApiPath } from "@/lib/uploadSecurity";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
+import { formatPhoneForStorage, isValidStoredEthiopianPhone } from "@/lib/phone";
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+    if (!(await enforceRateLimit(`auth_register:${ip}`, 10, 60_000))) {
+      return NextResponse.json({ error: "Too many sign-up attempts. Please wait a minute." }, { status: 429 });
+    }
+
     const { fullName, email, password, storeName, city, area, street, phone } = await req.json();
     if (!fullName || !email || !password || !city) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -18,9 +25,12 @@ export async function POST(req: Request) {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedPhone = String(phone ?? "").trim();
+    const normalizedPhone = formatPhoneForStorage(String(phone ?? ""));
     if (!normalizedPhone) {
       return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
+    }
+    if (!isValidStoredEthiopianPhone(normalizedPhone)) {
+      return NextResponse.json({ error: "Use a valid Ethiopian phone number." }, { status: 400 });
     }
     const resolvedStoreName = deriveStoreName(String(fullName), storeName);
 

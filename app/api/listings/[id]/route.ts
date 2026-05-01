@@ -6,6 +6,8 @@ import { hydrateStoredListingDetails } from "@/lib/listings/listingDetailsHydrat
 import { listingRepositoryPatchListing, ListingPersistError } from "@/lib/listings/listingRepository";
 import { uploadApiPath } from "@/lib/uploadSecurity";
 import { invalidateUploadMetaCacheMany } from "@/lib/uploadMetaCache";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+import { createAdminAuditLog } from "@/lib/adminAudit";
 
 type Params = { params: { id: string } };
 
@@ -39,8 +41,10 @@ export async function GET(_req: Request, { params }: Params) {
             id: true,
             slug: true,
             storeName: true,
+            phone: true,
             city: true,
             area: true,
+            street: true,
             profileImageUploadId: true,
             user: { select: { username: true } },
           },
@@ -70,6 +74,12 @@ export async function GET(_req: Request, { params }: Params) {
       rating = stats._avg.rating ? Math.round(stats._avg.rating * 10) / 10 : 0;
     }
     const hydrated = hydrateStoredListingDetails(listing.category, listing.subcategory, listing.details);
+    void recordAnalyticsEvent(_req, "listing_view", {
+      listingId: listing.id,
+      category: listing.category,
+      subcategory: listing.subcategory,
+      vendorId: listing.vendorId,
+    });
     return NextResponse.json({
       listing: {
         ...listing,
@@ -84,8 +94,10 @@ export async function GET(_req: Request, { params }: Params) {
               id: listing.vendor.id,
               slug: listing.vendor.slug,
               storeName: listing.vendor.storeName,
+              phone: listing.vendor.phone,
               city: listing.vendor.city,
               area: listing.vendor.area,
+              street: listing.vendor.street,
               profileImageUrl: listing.vendor.profileImageUploadId
                 ? uploadApiPath(listing.vendor.profileImageUploadId)
                 : null,
@@ -203,6 +215,23 @@ export async function PATCH(req: Request, { params }: Params) {
       },
     });
 
+    if (user.role === "ADMIN") {
+      await createAdminAuditLog({
+        actorUserId: user.id,
+        action: "LISTING_ADMIN_UPDATE",
+        targetType: "listing",
+        targetId: params.id,
+        metadata: {
+          changedTitle: body.title !== undefined,
+          changedPrice: body.price !== undefined,
+          changedStatus: body.status !== undefined,
+          changedCategory: body.category !== undefined,
+          changedSubcategory: body.subcategory !== undefined,
+          changedImages: Array.isArray(body.images),
+        },
+      });
+    }
+
     return NextResponse.json({
       listing: refreshed
         ? {
@@ -246,5 +275,13 @@ export async function DELETE(_req: Request, { params }: Params) {
   }
 
   await prisma.listing.delete({ where: { id: params.id } });
+  if (user.role === "ADMIN") {
+    await createAdminAuditLog({
+      actorUserId: user.id,
+      action: "LISTING_ADMIN_DELETE",
+      targetType: "listing",
+      targetId: params.id,
+    });
+  }
   return NextResponse.json({ ok: true });
 }

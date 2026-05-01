@@ -9,6 +9,9 @@ export default function PrivacyPage() {
         <p className="modalSub">
           We do not sell personal data. Access to internal tools is role-restricted and activity may be logged for security and abuse prevention.
         </p>
+        <p className="modalSub">
+          Users can contact support to request account-related clarifications and data handling assistance when needed.
+        </p>
       </section>
     </div>
   );

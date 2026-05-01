@@ -8,6 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { useToast } from "@/components/ToastProvider";
 import { dashboardToast } from "@/lib/dashboardToastCopy";
 import { MAX_IMAGE_UPLOAD_MB, validateImageFile } from "@/lib/imageUploadValidation";
+import { formatPhoneForStorage, formatStoredPhoneToLocalDigits, normalizeLocalPhoneDigits } from "@/lib/phone";
 
 function slugify(value: string) {
   return value
@@ -67,7 +68,7 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
         setCity(vendor.city || "");
         setSubcity(vendor.area || "");
         setArea(vendor.street || "");
-        setPhone(vendor.phone || "");
+        setPhone(formatStoredPhoneToLocalDigits(vendor.phone || ""));
       }
     }
     if (user) load();
@@ -108,7 +109,26 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
     return (
       <div className={variant === "page" ? "sellPage" : ""}>
         <main className="sellMain">
-          <p>Please sign in to edit your vendor profile.</p>
+          <section className="sellCard">
+            <div className="sellCardInner">
+              <h2 className="sellCardTitle">Create or access your vendor account</h2>
+              <p className="modalSub">Use Google to continue, or sign in/register from the profile menu.</p>
+              <div className="modalActions" style={{ justifyContent: "flex-start", marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="authGoogleBtn"
+                  onClick={() => {
+                    window.location.href = "/api/auth/google/start";
+                  }}
+                >
+                  <span className="authGoogleMark" aria-hidden="true">
+                    G
+                  </span>
+                  <span>Login / Signup with Google</span>
+                </button>
+              </div>
+            </div>
+          </section>
         </main>
       </div>
     );
@@ -149,7 +169,7 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
         city,
         area: subcity,
         street: area.trim() || undefined,
-        phone,
+        phone: formatPhoneForStorage(phone),
         profileImageUploadId: nextProfileImageUploadId || null,
       }),
     });
@@ -183,7 +203,7 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
         city,
         area: subcity,
         street: area.trim() || undefined,
-        phone,
+        phone: formatPhoneForStorage(phone),
         removeProfileImage: true,
       }),
     });
@@ -300,7 +320,19 @@ export function VendorProfileForm({ variant = "page", onSaved }: VendorProfileFo
 
             <label className="sellField">
               <span className="sellFieldLabel">Phone Number</span>
-              <input type="tel" className="sellInput" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+              <div className="phoneInputWrap">
+                <span className="phoneInputPrefix">+251</span>
+                <input
+                  type="tel"
+                  className="sellInput phoneInputControl"
+                  value={phone}
+                  onChange={(e) => setPhone(normalizeLocalPhoneDigits(e.target.value))}
+                  inputMode="numeric"
+                  pattern="[0-9]{1,10}"
+                  maxLength={10}
+                  required
+                />
+              </div>
             </label>
 
             <label className="sellField">

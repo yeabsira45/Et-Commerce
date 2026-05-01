@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { deriveStoreName, uniqueUsername, uniqueVendorSlug } from "@/lib/vendorNaming";
 import { uploadApiPath } from "@/lib/uploadSecurity";
 import { invalidateUploadMetaCache } from "@/lib/uploadMetaCache";
+import { formatPhoneForStorage, isValidStoredEthiopianPhone } from "@/lib/phone";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -31,13 +32,17 @@ export async function PATCH(req: Request) {
 
   const body = await req.json();
   const { fullName, email, storeName, city, area, street, phone, profileImageUploadId, removeProfileImage } = body;
+  const normalizedPhone = formatPhoneForStorage(String(phone ?? ""));
 
-  if (!fullName || !email || !city || !phone) {
+  if (!fullName || !email || !city || !normalizedPhone) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+  if (!isValidStoredEthiopianPhone(normalizedPhone)) {
+    return NextResponse.json({ error: "Use a valid Ethiopian phone number." }, { status: 400 });
   }
 
   const existingPhone = await prisma.vendor.findFirst({
-    where: { phone, NOT: { userId: user.id } },
+    where: { phone: normalizedPhone, NOT: { userId: user.id } },
   });
   if (existingPhone) {
     return NextResponse.json({ error: "Phone number already taken" }, { status: 409 });
@@ -84,7 +89,7 @@ export async function PATCH(req: Request) {
       city,
       area,
       street,
-      phone,
+      phone: normalizedPhone,
       profileImageUploadId: resolvedProfileImageUploadId,
     },
     create: {
@@ -94,7 +99,7 @@ export async function PATCH(req: Request) {
       city,
       area,
       street,
-      phone,
+      phone: normalizedPhone,
       profileImageUploadId: resolvedProfileImageUploadId,
     },
   });

@@ -21,6 +21,7 @@ export function VendorPanel({
   const { logout } = useAppContext();
   const [render, setRender] = useState(open);
   const [closing, setClosing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -39,6 +40,16 @@ export function VendorPanel({
   }, [open, render]);
 
   if (!render) return null;
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+      onClose();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   return (
     <div className={`vpOverlay ${closing ? "isClosing" : ""}`} role="dialog" aria-modal="true" aria-label="Vendor menu">
@@ -87,9 +98,18 @@ export function VendorPanel({
                 <div className="vpActionTitle">Edit Store Profile</div>
                 <div className="vpActionSub">Update store details</div>
               </Link>
-              <button className="vpAction" type="button" onClick={logout}>
-                <div className="vpActionTitle">Sign out</div>
-                <div className="vpActionSub">End your session</div>
+              <button className="vpAction" type="button" onClick={() => void handleLogout()} disabled={loggingOut}>
+                <div className="vpActionTitle">{loggingOut ? "Signing out..." : "Sign out"}</div>
+                <div className="vpActionSub">
+                  {loggingOut ? (
+                    <span className="btnLoading">
+                      <span className="btnSpinner" aria-hidden="true" />
+                      <span>Signing out...</span>
+                    </span>
+                  ) : (
+                    "End your session"
+                  )}
+                </div>
               </button>
             </>
           ) : (

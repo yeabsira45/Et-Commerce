@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { createAdminAuditLog } from "@/lib/adminAudit";
 
 type Params = { params: { id: string } };
 
@@ -22,6 +23,13 @@ export async function PATCH(req: Request, { params }: Params) {
       where: { id: params.id },
       data: { username, email },
     });
+    await createAdminAuditLog({
+      actorUserId: session.id,
+      action: "USER_PROFILE_UPDATE",
+      targetType: "user",
+      targetId: params.id,
+      metadata: { username, email },
+    });
     return NextResponse.json({ ok: true, user: { id: params.id, username, email } });
   } catch {
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
@@ -36,6 +44,12 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   try {
     await prisma.user.delete({ where: { id: params.id } });
+    await createAdminAuditLog({
+      actorUserId: session.id,
+      action: "USER_DELETE",
+      targetType: "user",
+      targetId: params.id,
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Delete failed" }, { status: 500 });

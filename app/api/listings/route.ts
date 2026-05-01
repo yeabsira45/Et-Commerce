@@ -5,10 +5,13 @@ import { getSessionUser } from "@/lib/auth";
 import { listingRepositoryCreate, ListingPersistError } from "@/lib/listings/listingRepository";
 import { parseUploadIdFromValue, uploadApiPath } from "@/lib/uploadSecurity";
 import { invalidateUploadMetaCacheMany } from "@/lib/uploadMetaCache";
+import { normalizeSavedSearchQuery, matchesSavedSearchQuery } from "@/lib/savedSearch";
+import { recordAnalyticsEvent } from "@/lib/analytics";
 
 const LISTING_EXPIRY_DAYS = 60;
 const DUPLICATE_LISTING_WINDOW_DAYS = 30;
 const MAX_NEW_LISTINGS_PER_DAY = 25;
+const DEFAULT_MODERATION_STATE = process.env.REQUIRE_LISTING_MODERATION === "true" ? "PENDING" : "APPROVED";
 
 function plusDays(base: Date, days: number) {
   return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
@@ -94,6 +97,7 @@ export async function GET(req: Request) {
       },
     },
   });
+  void recordAnalyticsEvent(req, "listings_feed_view", { mine, limit: Math.min(limit, 50) });
   return NextResponse.json({ listings: listings.map(toListingResponse) });
 }
 
@@ -139,6 +143,15 @@ export async function POST(req: Request) {
       },
     });
     if (createdInLastDay >= MAX_NEW_LISTINGS_PER_DAY) {
+      await prisma.fraudSignal.create({
+        data: {
+          userId: user.id,
+          type: "POSTING_RATE_LIMIT_HIT",
+          severity: 2,
+          notes: "Vendor exceeded daily listing creation threshold.",
+          data: { createdInLastDay, maxPerDay: MAX_NEW_LISTINGS_PER_DAY },
+        },
+      });
       return NextResponse.json({ error: "Posting limit reached. Please try again later." }, { status: 429 });
     }
 
@@ -156,6 +169,15 @@ export async function POST(req: Request) {
       select: { id: true },
     });
     if (duplicate) {
+      await prisma.fraudSignal.create({
+        data: {
+          userId: user.id,
+          type: "DUPLICATE_LISTING_ATTEMPT",
+          severity: 1,
+          notes: "Potential duplicate listing detected during create flow.",
+          data: { duplicateListingId: duplicate.id, title: titleTrimmed, category: String(category) },
+        },
+      });
       return NextResponse.json({ error: "Duplicate listing detected. Please edit your existing ad." }, { status: 409 });
     }
 
@@ -222,7 +244,7 @@ export async function POST(req: Request) {
       vendorId,
       ownerId: user.id,
       rawDetails: details,
-      moderationState: "PENDING",
+      moderationState: DEFAULT_MODERATION_STATE,
       expiresAt: plusDays(now, LISTING_EXPIRY_DAYS),
       images: requestedImageUploadIds.map((uploadId: string, idx: number) => ({
         uploadId,
@@ -239,6 +261,60 @@ export async function POST(req: Request) {
       },
     });
     invalidateUploadMetaCacheMany(requestedImageUploadIds);
+
+    const activeSavedSearches = await prisma.savedSearch.findMany({
+      where: {
+        isActive: true,
+        userId: { not: user.id },
+      },
+      select: { id: true, userId: true, query: true, name: true },
+      take: 300,
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const matchingSavedSearches = activeSavedSearches.filter((entry) =>
+      matchesSavedSearchQuery(
+        {
+          id: listing.id,
+          title: listing.title,
+          category: listing.category,
+          subcategory: listing.subcategory,
+          description: listing.description,
+          city: listing.city,
+          area: listing.area,
+          condition: listing.condition,
+          price: listing.price ? Number(listing.price) : null,
+          createdAt: listing.createdAt,
+        },
+        normalizeSavedSearchQuery(entry.query)
+      )
+    );
+
+    if (matchingSavedSearches.length) {
+      await prisma.$transaction([
+        prisma.notification.createMany({
+          data: matchingSavedSearches.map((entry) => ({
+            senderId: user.id,
+            receiverId: entry.userId,
+            type: "LISTING",
+            title: "New listing for your saved alert",
+            body: `${listing.title} matches "${entry.name}".`,
+            data: { listingId: listing.id, savedSearchId: entry.id },
+          })),
+        }),
+        prisma.savedSearch.updateMany({
+          where: { id: { in: matchingSavedSearches.map((entry) => entry.id) } },
+          data: { lastNotifiedAt: new Date() },
+        }),
+      ]);
+    }
+
+    void recordAnalyticsEvent(req, "listing_create_success", {
+      category: listing.category,
+      subcategory: listing.subcategory,
+      hasPrice: listing.price !== null,
+      imageCount: requestedImageUploadIds.length,
+    });
 
     return NextResponse.json({
       listing: toListingResponse({

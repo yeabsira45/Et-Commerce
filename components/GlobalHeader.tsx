@@ -17,6 +17,11 @@ const NotificationsModal = dynamic(
   { ssr: false }
 );
 
+const FeedbackModal = dynamic(
+  () => import("./FeedbackModal").then((mod) => mod.FeedbackModal),
+  { ssr: false }
+);
+
 function Icon({ kind }: { kind: "bookmark" | "chat" | "bell" | "user" }) {
   const common = {
     width: 18,
@@ -92,6 +97,7 @@ export function GlobalHeader() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [afterAuthPath, setAfterAuthPath] = useState<string | null>(null);
   const [animateBadge, setAnimateBadge] = useState(false);
   const router = useRouter();
@@ -133,7 +139,8 @@ export function GlobalHeader() {
                   setAuthOpen(true);
                   return;
                 }
-                router.push("/messages");
+                window.scrollTo({ top: 0, behavior: "auto" });
+                router.push("/messages", { scroll: true });
               }}
             />
             <TooltipIconButton label="Notifications" kind="bell" onClick={() => setNotificationsOpen(true)} />
@@ -145,10 +152,14 @@ export function GlobalHeader() {
               onClick={() => setVendorOpen(true)}
             />
 
-            <button className="pillBtn vendorBtn" onClick={() => setVendorOpen(true)}>
-              Vendor
+            <button type="button" className="pillBtn vendorBtn" onClick={() => setVendorOpen(true)}>
+              Account
+            </button>
+            <button type="button" className="pillBtn vendorBtn" onClick={() => setFeedbackOpen(true)}>
+              Feedback
             </button>
             <button
+              type="button"
               className="pillBtn sellBtn sellAttention"
               onClick={() => {
                 if (!user) {
@@ -198,6 +209,7 @@ export function GlobalHeader() {
         }}
       />
       <NotificationsModal open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   );
 }

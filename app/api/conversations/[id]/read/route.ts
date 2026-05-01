@@ -22,10 +22,11 @@ export async function POST(_req: Request, { params }: Params) {
     where: {
       conversationId: params.id,
       senderId: { not: user.id },
-      readAt: null,
+      OR: [{ readAt: null }, { seenAt: null }],
     },
     data: {
       readAt: new Date(),
+      seenAt: new Date(),
     },
   });
 

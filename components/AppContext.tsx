@@ -59,7 +59,7 @@ export type Conversation = {
   };
   requesterId: string;
   ownerId: string;
-  messages?: { id: string; senderId: string; body: string; createdAt: string; readBy?: string[] }[];
+  messages?: { id: string; senderId: string; body: string; createdAt: string; readBy?: string[]; seenAt?: string | null }[];
   requester?: { id: string; username?: string; fullName?: string; vendor?: VendorProfile | null; profileImageUrl?: string | null; slug?: string | null };
   owner?: { id: string; username?: string; fullName?: string; vendor?: VendorProfile | null; profileImageUrl?: string | null; slug?: string | null };
   unreadCount?: number;
@@ -86,7 +86,7 @@ type AppContextValue = {
   user: UserProfile | null;
   login: (identifier: string, password: string) => Promise<boolean>;
   register: (payload: RegisterPayload) => Promise<RegisterResult>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   savedItems: ProductCard[];
   toggleSave: (item: ProductCard) => void;
@@ -114,6 +114,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<WebSocket | null>(null);
   const conversationRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationRefreshInFlightRef = useRef(false);
+  const sendLocksRef = useRef(new Set<string>());
 
   const applyUser = useCallback((nextUser: UserProfile | null) => {
     setUser(nextUser);
@@ -370,6 +371,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ listingId: item.id }),
+          }).catch(() => {
+            // Keep optimistic UI; sync can recover on next refresh.
           });
         }
         return prev.filter((p) => p.id !== item.id);
@@ -379,7 +382,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ listingId: item.id }),
-        });
+        })
+          .then(async (res) => {
+            if (res.ok) return;
+            // Roll back optimistic add on server failure.
+            setSavedItems((current) => current.filter((entry) => entry.id !== item.id));
+          })
+          .catch(() => {
+            setSavedItems((current) => current.filter((entry) => entry.id !== item.id));
+          });
       }
       return [...prev, item];
     });
@@ -410,17 +421,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [user, setActiveConversationId, bus, scheduleConversationsRefresh]);
 
   const sendMessage = useCallback(async (conversationId: string, body: string) => {
-    if (!user || !body.trim()) return false;
+    const trimmed = body.trim();
+    if (!user || !trimmed) return false;
+    const sendLockKey = `${conversationId}:${trimmed}`;
+    if (sendLocksRef.current.has(sendLockKey)) return false;
+    sendLocksRef.current.add(sendLockKey);
     if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: "message:send", conversationId, body: body.trim() }));
-      return true;
+      try {
+        socketRef.current.send(JSON.stringify({ type: "message:send", conversationId, body: trimmed }));
+        return true;
+      } finally {
+        sendLocksRef.current.delete(sendLockKey);
+      }
     }
 
     try {
       const res = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: body.trim() }),
+        body: JSON.stringify({ body: trimmed }),
       });
       if (!res.ok) return false;
       const data = await res.json();
@@ -431,6 +450,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return true;
     } catch {
       return false;
+    } finally {
+      sendLocksRef.current.delete(sendLockKey);
     }
   }, [user, socketRef, bus, scheduleConversationsRefresh]);
 

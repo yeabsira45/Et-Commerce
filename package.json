@@ -6,7 +6,8 @@
     "dev": "node server.js",
     "build": "next build",
     "start": "node server.js",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:smoke": "node scripts/smoke-integration.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",

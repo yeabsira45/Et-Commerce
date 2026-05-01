@@ -12,6 +12,9 @@ export default function FaqPage() {
         <p className="modalSub">
           <strong>How do I contact a seller?</strong> Open a listing and use the chat or provided contact options.
         </p>
+        <p className="modalSub">
+          <strong>How do I report bugs or suggestions?</strong> Use the Feedback option in the header and include clear steps/screenshots if possible.
+        </p>
       </section>
     </div>
   );

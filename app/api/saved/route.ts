@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { uploadApiPath } from "@/lib/uploadSecurity";
@@ -63,54 +64,59 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({} as { listingId?: unknown }));
-  const listingId = typeof body.listingId === "string" ? body.listingId : "";
-  if (!listingId) {
-    return NextResponse.json({ error: "listingId required" }, { status: 400 });
-  }
+  try {
+    const body = await req.json().catch(() => ({} as { listingId?: unknown }));
+    const listingId = typeof body.listingId === "string" ? body.listingId : "";
+    if (!listingId) {
+      return NextResponse.json({ error: "listingId required" }, { status: 400 });
+    }
 
-  const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: { id: true, ownerId: true, title: true, status: true, moderationState: true, expiresAt: true },
-  });
-  if (!listing) {
-    return NextResponse.json({ error: "Listing not found" }, { status: 404 });
-  }
-  if (
-    listing.status !== "ACTIVE" ||
-    listing.moderationState !== "APPROVED" ||
-    (listing.expiresAt && listing.expiresAt <= new Date())
-  ) {
-    return NextResponse.json({ error: "Listing is not available" }, { status: 400 });
-  }
-
-  const existing = await prisma.savedListing.findUnique({
-    where: { userId_listingId: { userId: user.id, listingId } },
-    select: { id: true },
-  });
-  if (existing) {
-    return NextResponse.json({ ok: true, created: false });
-  }
-
-  await prisma.savedListing.create({
-    data: { userId: user.id, listingId },
-  });
-
-  if (listing.ownerId !== user.id) {
-    const actor = (user.username || "").trim() || "A user";
-    await prisma.notification.create({
-      data: {
-        senderId: user.id,
-        receiverId: listing.ownerId,
-        type: "LISTING",
-        title: "Listing saved",
-        body: `${actor} saved your listing "${listing.title}".`,
-        data: { listingId, actorUserId: user.id, action: "saved_listing" },
-      },
+    const listing = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true, ownerId: true, title: true, status: true, moderationState: true, expiresAt: true },
     });
-  }
+    if (!listing) {
+      return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+    }
+    if (
+      listing.status !== "ACTIVE" ||
+      listing.moderationState !== "APPROVED" ||
+      (listing.expiresAt && listing.expiresAt <= new Date())
+    ) {
+      return NextResponse.json({ error: "Listing is not available" }, { status: 400 });
+    }
 
-  return NextResponse.json({ ok: true, created: true });
+    await prisma.savedListing.upsert({
+      where: { userId_listingId: { userId: user.id, listingId } },
+      create: { userId: user.id, listingId },
+      update: {},
+    });
+
+    if (listing.ownerId !== user.id) {
+      const actor = (user.username || "").trim() || "A user";
+      try {
+        await prisma.notification.create({
+          data: {
+            senderId: user.id,
+            receiverId: listing.ownerId,
+            type: "LISTING",
+            title: "Listing saved",
+            body: `${actor} saved your listing "${listing.title}".`,
+            data: { listingId, actorUserId: user.id, action: "saved_listing" },
+          },
+        });
+      } catch {
+        // Saving a listing should not fail if notification delivery fails.
+      }
+    }
+
+    return NextResponse.json({ ok: true, created: true });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json({ ok: true, created: false });
+    }
+    return NextResponse.json({ error: "Failed to save listing." }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: Request) {

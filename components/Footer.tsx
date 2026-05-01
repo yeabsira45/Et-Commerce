@@ -19,84 +19,54 @@ const REGIONS = [
 export function Footer() {
   return (
     <footer className="siteFooter">
-      <div className="footerSkyline" aria-hidden="true">
-        <div className="footerBuilding footerBuilding--short" />
-        <div className="footerBuilding footerBuilding--tall" />
-        <div className="footerBuilding footerBuilding--medium" />
-        <div className="footerBuilding footerBuilding--tall" />
-        <div className="footerBuilding footerBuilding--short" />
-        <div className="footerBuilding footerBuilding--medium" />
-        <div className="footerBuilding footerBuilding--tall" />
-        <div className="footerBuilding footerBuilding--short" />
-      </div>
-
       <div className="container footerInner">
-        <div className="footerColumns">
+        <div className="footerColumns footerColumnsHero">
           <div className="footerCol">
-            <h3 className="footerHeading">About us</h3>
-            <Link className="footerLink" href="/about">
-              About ET-Commerce Classifieds
-            </Link>
-            <Link className="footerLink" href="/terms">
-              Terms &amp; Conditions
-            </Link>
-            <Link className="footerLink" href="/privacy">
-              Privacy Policy
-            </Link>
-            <Link className="footerLink" href="/cookies">
-              Cookie Policy
-            </Link>
-            <Link className="footerLink" href="/copyright">
-              Copyright Infringement Policy
-            </Link>
+            <h3 className="footerHeading footerBrandHeading">ET-Commerce</h3>
+            <div className="footerFeatureList">
+              <Link className="footerLink footerFeatureLink" href="/safety">
+                <span className="footerFeatureIcon" aria-hidden="true">🛡</span>
+                <span>Safe &amp; Secure</span>
+              </Link>
+              <Link className="footerLink footerFeatureLink" href="/contact">
+                <span className="footerFeatureIcon" aria-hidden="true">🎧</span>
+                <span>24/7 Support</span>
+              </Link>
+              <Link className="footerLink footerFeatureLink" href="/privacy">
+                <span className="footerFeatureIcon" aria-hidden="true">📄</span>
+                <span>Privacy Policy</span>
+              </Link>
+            </div>
           </div>
 
           <div className="footerCol">
-            <h3 className="footerHeading">Support</h3>
-            <a href="mailto:support@commerceet.com" className="footerLink">
-              support@commerceet.com
-            </a>
-            <Link className="footerLink" href="/safety">
-              Safety tips
-            </Link>
-            <Link className="footerLink" href="/contact">
-              Contact us
+            <h3 className="footerHeading">Download Our App</h3>
+            <button type="button" className="footerStoreBadge" aria-label="Download on App Store">
+              <span className="footerStoreBadgeSub">Download on the</span>
+              <span className="footerStoreBadgeMain">App Store</span>
+            </button>
+            <button type="button" className="footerStoreBadge" aria-label="Get it on Google Play">
+              <span className="footerStoreBadgeSub">Get it on</span>
+              <span className="footerStoreBadgeMain">Google Play</span>
+            </button>
+            <div className="footerSocialRow">
+              <a className="footerSocialBtn" href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook">f</a>
+              <a className="footerSocialBtn" href="https://instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram">◎</a>
+              <a className="footerSocialBtn" href="https://youtube.com" target="_blank" rel="noopener noreferrer" aria-label="YouTube">▶</a>
+              <a className="footerSocialBtn" href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="Twitter">𝕏</a>
+            </div>
+          </div>
+
+          <div className="footerCol">
+            <h3 className="footerHeading">Explore More</h3>
+            <Link className="footerLink" href="/about">
+              About Us
             </Link>
             <Link className="footerLink" href="/faq">
-              FAQ
+              FAQs
             </Link>
-          </div>
-
-          <div className="footerCol">
-            <h3 className="footerHeading">How it works</h3>
-            <p className="modalSub" style={{ margin: 0 }}>
-              ET-Commerce connects buyers and sellers directly.
-            </p>
-            <p className="modalSub" style={{ margin: 0 }}>
-              Message or call the seller, meet safely, and agree on details in person.
-            </p>
-          </div>
-
-          <div className="footerCol">
-            <h3 className="footerHeading">Our resources</h3>
-            <a className="footerLink" href="https://facebook.com" target="_blank" rel="noopener noreferrer">
-              Our Facebook
-            </a>
-            <a className="footerLink" href="https://instagram.com" target="_blank" rel="noopener noreferrer">
-              Our Instagram
-            </a>
-            <a className="footerLink" href="https://youtube.com" target="_blank" rel="noopener noreferrer">
-              Our YouTube
-            </a>
-            <a className="footerLink" href="https://x.com" target="_blank" rel="noopener noreferrer">
-              Our Twitter
-            </a>
-          </div>
-
-          <div className="footerCol">
-            <h3 className="footerHeading">Hot links</h3>
-            <Link className="footerLink" href="/">
-              ET-Commerce
+            <Link className="footerLink" href="/contact">
+              Contact Us
             </Link>
           </div>
         </div>
@@ -120,6 +90,7 @@ export function Footer() {
     </button>
   ))}
 </div>
+        <div className="footerCopy">© 2026 ET-Commerce.com</div>
       </div>
     </footer>
   );

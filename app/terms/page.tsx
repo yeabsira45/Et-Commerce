@@ -9,6 +9,9 @@ export default function TermsPage() {
         <p className="modalSub">
           Prohibited content includes fraud, illegal goods, impersonation, and abusive behavior. Accounts may be restricted for violations.
         </p>
+        <p className="modalSub">
+          Users are responsible for their listings, pricing, and transaction decisions. ET-Commerce may remove content that violates policy or local legal requirements.
+        </p>
       </section>
     </div>
   );

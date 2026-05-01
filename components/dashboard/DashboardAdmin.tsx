@@ -21,11 +21,53 @@ type AdminListingRow = {
   id: string;
   title: string;
   status: string;
+  moderationState?: string;
+  moderationReason?: string | null;
   price?: number | string | null;
   city: string;
   area: string;
   ownerId?: string;
   images?: { url: string }[];
+};
+type VerificationVendor = {
+  id: string;
+  storeName: string;
+  slug: string;
+  userId: string;
+  phoneVerificationStatus: string;
+  idVerificationStatus: string;
+  addressVerificationStatus: string;
+  trustScore: number;
+  verificationSubmittedAt?: string | null;
+  verificationReviewedAt?: string | null;
+  verificationNotes?: string | null;
+  user?: { username?: string; email?: string } | null;
+};
+type FraudSignal = {
+  id: string;
+  userId: string;
+  type: string;
+  severity: number;
+  notes?: string | null;
+  resolvedAt?: string | null;
+  resolutionNote?: string | null;
+  createdAt: string;
+  user?: { username?: string; email?: string; vendor?: { storeName?: string; slug?: string } | null } | null;
+};
+type AdminAuditLog = {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  createdAt: string;
+  actor?: { username?: string; email?: string } | null;
+};
+type FeedbackEntry = {
+  id: string;
+  type: "BUG" | "FEATURE" | "GENERAL";
+  message: string;
+  createdAt: string;
+  user?: { id: string; username: string; email: string } | null;
 };
 
 function priceNum(p: AdminListingRow["price"]): number | null {
@@ -75,6 +117,10 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [listings, setListings] = useState<AdminListingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [verificationQueue, setVerificationQueue] = useState<VerificationVendor[]>([]);
+  const [fraudSignals, setFraudSignals] = useState<FraudSignal[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [feedbackEntries, setFeedbackEntries] = useState<FeedbackEntry[]>([]);
   const [userMeta, setUserMeta] = useState<AdminPageMeta>({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
   const [listingMeta, setListingMeta] = useState<AdminPageMeta>({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
   const [editListingId, setEditListingId] = useState<string | null>(null);
@@ -107,17 +153,47 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
     if (userQuery.trim()) params.set("userQuery", userQuery.trim());
     if (listingQuery.trim()) params.set("listingQuery", listingQuery.trim());
 
-    const res = await fetch(`/api/admin/snapshot?${params.toString()}`, { cache: "no-store" });
-    if (!res.ok) {
+    const [snapshotRes, verificationRes, fraudRes, auditRes, feedbackRes] = await Promise.all([
+      fetch(`/api/admin/snapshot?${params.toString()}`, { cache: "no-store" }),
+      fetch("/api/admin/verification", { cache: "no-store" }),
+      fetch("/api/admin/fraud-signals?unresolvedOnly=true", { cache: "no-store" }),
+      fetch("/api/admin/audit-logs", { cache: "no-store" }),
+      fetch("/api/admin/feedback?page=1&pageSize=20", { cache: "no-store" }),
+    ]);
+    if (!snapshotRes.ok) {
       setLoading(false);
       showToast(dashboardToast.adminLoadFailed, "error");
       return;
     }
-    const data = await res.json();
+    const data = await snapshotRes.json();
     setUsers(data.users || []);
     setListings(data.listings || []);
     setUserMeta(data.userMeta || { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
     setListingMeta(data.listingMeta || { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
+    if (verificationRes.ok) {
+      const verificationData = await verificationRes.json();
+      setVerificationQueue(verificationData.vendors || []);
+    } else {
+      setVerificationQueue([]);
+    }
+    if (fraudRes.ok) {
+      const fraudData = await fraudRes.json();
+      setFraudSignals(fraudData.signals || []);
+    } else {
+      setFraudSignals([]);
+    }
+    if (auditRes.ok) {
+      const auditData = await auditRes.json();
+      setAuditLogs(auditData.logs || []);
+    } else {
+      setAuditLogs([]);
+    }
+    if (feedbackRes.ok) {
+      const feedbackData = await feedbackRes.json();
+      setFeedbackEntries(feedbackData.entries || []);
+    } else {
+      setFeedbackEntries([]);
+    }
     setLoading(false);
   }, [listingPage, listingQuery, listingSort, showToast, userPage, userQuery, userSort]);
 
@@ -266,6 +342,82 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
     await load();
   }
 
+  async function moderateListing(id: string, action: "approve" | "reject") {
+    const row = listings.find((l) => l.id === id);
+    if (!row) return;
+    let reason = "";
+    if (action === "reject") {
+      reason = window.prompt(`Reason for rejecting "${row.title}"?`)?.trim() || "";
+      if (!reason) {
+        showToast("Rejection reason is required.", "warning");
+        return;
+      }
+    }
+    const res = await fetch(`/api/admin/listings/${id}/moderate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || "Could not update moderation state.", "error");
+      return;
+    }
+    showToast(action === "approve" ? "Listing is now live." : "Listing rejected.");
+    await load();
+  }
+
+  async function reviewVerification(vendorId: string, field: "phone" | "id" | "address", status: "VERIFIED" | "REJECTED" | "PENDING") {
+    const note = status === "REJECTED" ? window.prompt("Reason for rejection? (optional)") || "" : "";
+    const res = await fetch("/api/admin/verification", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vendorId, field, status, note }),
+    });
+    if (!res.ok) {
+      showToast("Could not update verification.", "error");
+      return;
+    }
+    showToast("Verification updated.");
+    await load();
+  }
+
+  async function resolveFraudSignal(signalId: string, resolve: boolean) {
+    const note = resolve ? window.prompt("Resolution note? (optional)") || "" : "";
+    const res = await fetch("/api/admin/fraud-signals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signalId, action: resolve ? "resolve" : "reopen", note }),
+    });
+    if (!res.ok) {
+      showToast("Could not update fraud signal.", "error");
+      return;
+    }
+    showToast(resolve ? "Fraud signal resolved." : "Fraud signal reopened.");
+    await load();
+  }
+
+  async function deleteFeedback(id: string) {
+    if (!window.confirm("Delete this feedback entry?")) return;
+    const res = await fetch(`/api/admin/feedback/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      showToast("Could not delete feedback.", "error");
+      return;
+    }
+    showToast("Feedback deleted.");
+    await load();
+  }
+
+  async function checkEmailHealth() {
+    const res = await fetch("/api/test-email", { cache: "no-store" }).catch(() => null);
+    if (!res?.ok) {
+      const payload = (await res?.json().catch(() => ({}))) as { error?: string };
+      showToast(payload.error || "SMTP check failed.", "error");
+      return;
+    }
+    showToast("SMTP check passed.");
+  }
+
   const usersFiltering = userQuery.trim().length > 0;
   const listingsFiltering = listingQuery.trim().length > 0;
 
@@ -274,13 +426,14 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
   }
 
   return (
-    <div>
-      <h2>Admin</h2>
-      <p className="modalSub">
+    <div className="adminDashboard">
+      <h2 className="adminDashboardTitle">Admin</h2>
+      <p className="modalSub adminDashboardSub">
         Super Admin view. Search, sort, and pagination help at scale.
       </p>
 
-      <h3 className="sellCardTitle" style={{ marginTop: 24, fontSize: "1.05rem" }}>
+      <section className="adminSection">
+      <h3 className="sellCardTitle adminSectionTitle">
         Users
       </h3>
       <div className={`adminToolbar ${usersFiltering ? "adminToolbarActive" : ""}`}>
@@ -374,8 +527,10 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
           )}
         </div>
       ))}
+      </section>
 
-      <h3 className="sellCardTitle" style={{ marginTop: 28, fontSize: "1.05rem" }}>
+      <section className="adminSection">
+      <h3 className="sellCardTitle adminSectionTitle">
         All listings
       </h3>
       <div className={`adminToolbar ${listingsFiltering ? "adminToolbarActive" : ""}`}>
@@ -485,10 +640,26 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
                     <div className="modalThreadMeta">
                       {listing.city}, {listing.area} — {listing.status} — owner {listing.ownerId || "—"}
                     </div>
+                    <div className="modalThreadMeta">
+                      <span className={`adminBadge ${listing.moderationState === "APPROVED" ? "adminBadgeLive" : listing.moderationState === "REJECTED" ? "adminBadgeRejected" : "adminBadgePending"}`}>
+                        {listing.moderationState || "PENDING"}
+                      </span>
+                      {listing.moderationReason ? ` Reason: ${listing.moderationReason}` : ""}
+                    </div>
                     <div className="modalThreadMeta">{formatEtbPrice(p)}</div>
                   </div>
                 </div>
                 <div className="adminRowActions">
+                  {listing.moderationState !== "APPROVED" ? (
+                    <button type="button" className="modalPrimary" onClick={() => void moderateListing(listing.id, "approve")}>
+                      Publish Live
+                    </button>
+                  ) : null}
+                  {listing.moderationState !== "REJECTED" ? (
+                    <button type="button" className="modalSecondary" onClick={() => void moderateListing(listing.id, "reject")}>
+                      Reject
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="modalSecondary"
@@ -511,6 +682,120 @@ export function DashboardAdmin({ user }: { user: UserProfile }) {
           </div>
         );
       })}
+      </section>
+
+      <section className="adminSection">
+      <h3 className="sellCardTitle adminSectionTitle">
+        Vendor verification queue
+      </h3>
+      {verificationQueue.length === 0 ? <p className="modalSub">No pending verification requests.</p> : null}
+      {verificationQueue.map((vendor) => (
+        <div key={vendor.id} className="adminListingRow">
+          <div>
+            <div className="modalThreadTitle">
+              {vendor.storeName} <span className="adminBadge">Trust {vendor.trustScore}</span>
+            </div>
+            <div className="modalThreadMeta">
+              @{vendor.slug} • {vendor.user?.username || "unknown"} ({vendor.user?.email || "n/a"})
+            </div>
+            <div className="modalThreadMeta">
+              Phone: {vendor.phoneVerificationStatus} • ID: {vendor.idVerificationStatus} • Address: {vendor.addressVerificationStatus}
+            </div>
+            {vendor.verificationNotes ? <div className="modalThreadMeta">{vendor.verificationNotes}</div> : null}
+          </div>
+          <div className="adminRowActions" style={{ flexWrap: "wrap" }}>
+            <button type="button" className="modalSecondary" onClick={() => reviewVerification(vendor.id, "phone", "VERIFIED")}>Verify phone</button>
+            <button type="button" className="modalSecondary" onClick={() => reviewVerification(vendor.id, "id", "VERIFIED")}>Verify ID</button>
+            <button type="button" className="modalSecondary" onClick={() => reviewVerification(vendor.id, "address", "VERIFIED")}>Verify address</button>
+            <button type="button" className="modalSecondary" onClick={() => reviewVerification(vendor.id, "id", "REJECTED")}>Reject ID</button>
+          </div>
+        </div>
+      ))}
+      </section>
+
+      <section className="adminSection">
+      <h3 className="sellCardTitle adminSectionTitle">
+        Fraud signals
+      </h3>
+      {fraudSignals.length === 0 ? <p className="modalSub">No active fraud signals.</p> : null}
+      {fraudSignals.map((signal) => (
+        <div key={signal.id} className="adminListingRow">
+          <div>
+            <div className="modalThreadTitle">
+              {signal.type} <span className="adminBadge">Severity {signal.severity}</span>
+            </div>
+            <div className="modalThreadMeta">
+              User: {signal.user?.username || signal.userId} ({signal.user?.email || "n/a"}) • {new Date(signal.createdAt).toLocaleString()}
+            </div>
+            {signal.notes ? <div className="modalThreadMeta">{signal.notes}</div> : null}
+            {signal.resolutionNote ? <div className="modalThreadMeta">Resolution: {signal.resolutionNote}</div> : null}
+          </div>
+          <div className="adminRowActions">
+            {signal.resolvedAt ? (
+              <button type="button" className="modalSecondary" onClick={() => resolveFraudSignal(signal.id, false)}>Reopen</button>
+            ) : (
+              <button type="button" className="modalSecondary" onClick={() => resolveFraudSignal(signal.id, true)}>Resolve</button>
+            )}
+          </div>
+        </div>
+      ))}
+      </section>
+
+      <section className="adminSection">
+      <h3 className="sellCardTitle adminSectionTitle">
+        Delivery health
+      </h3>
+      <div className="adminRowActions">
+        <button type="button" className="modalSecondary" onClick={() => void checkEmailHealth()}>
+          Run SMTP test
+        </button>
+      </div>
+      </section>
+
+      <section className="adminSection">
+      <h3 className="sellCardTitle adminSectionTitle">
+        Admin audit log
+      </h3>
+      {auditLogs.length === 0 ? <p className="modalSub">No admin actions logged yet.</p> : null}
+      {auditLogs.slice(0, 40).map((log) => (
+        <div key={log.id} className="adminUserRow">
+          <div>
+            <div className="modalThreadTitle">{log.action}</div>
+            <div className="modalThreadMeta">
+              {log.targetType}
+              {log.targetId ? ` • ${log.targetId}` : ""} • by {log.actor?.username || log.actor?.email || "admin"} • {new Date(log.createdAt).toLocaleString()}
+            </div>
+          </div>
+        </div>
+      ))}
+      </section>
+
+      <section className="adminSection">
+      <h3 className="sellCardTitle adminSectionTitle">
+        User feedback inbox
+      </h3>
+      {feedbackEntries.length === 0 ? <p className="modalSub">No feedback submissions yet.</p> : null}
+      {feedbackEntries.map((entry) => (
+        <div key={entry.id} className="adminUserRow">
+          <div>
+            <div className="modalThreadTitle">
+              {entry.type} <span className="adminBadge">{new Date(entry.createdAt).toLocaleString()}</span>
+            </div>
+            <div className="modalThreadMeta">
+              {entry.user ? `${entry.user.username} (${entry.user.email})` : "Anonymous"}
+            </div>
+            <div className="modalThreadMeta" style={{ whiteSpace: "pre-wrap" }}>
+              {entry.message}
+            </div>
+          </div>
+          <div className="adminRowActions">
+            <button type="button" className="modalSecondary" onClick={() => void deleteFeedback(entry.id)}>
+              Delete
+            </button>
+          </div>
+        </div>
+      ))}
+      </section>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAppContext } from "./AppContext";
 
 type Props = {
@@ -15,10 +16,13 @@ type Notification = {
   createdAt: string;
   readAt: string | null;
   type?: string;
+  data?: Record<string, unknown> | null;
+  conversationId?: string | null;
 };
 
 export function NotificationsModal({ open, onClose }: Props) {
   const { user, unreadMessages, markNotificationsRead } = useAppContext();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [render, setRender] = useState(open);
   const [closing, setClosing] = useState(false);
@@ -55,6 +59,33 @@ export function NotificationsModal({ open, onClose }: Props) {
 
   if (!render) return null;
 
+  function typeIcon(type?: string) {
+    if (type === "MESSAGE") return "💬";
+    if (type === "LISTING") return "🔖";
+    if (type === "SYSTEM") return "⚙️";
+    return "🔔";
+  }
+
+  function resolveNotificationHref(notification: Notification): string | null {
+    const payload = notification.data && typeof notification.data === "object"
+      ? (notification.data as Record<string, unknown>)
+      : null;
+    const listingId = payload && typeof payload.listingId === "string" ? payload.listingId : null;
+    const conversationIdFromData = payload && typeof payload.conversationId === "string" ? payload.conversationId : null;
+    const conversationId = conversationIdFromData || notification.conversationId || null;
+
+    if (conversationId) {
+      return `/messages?conversation=${encodeURIComponent(conversationId)}`;
+    }
+    if (listingId) {
+      return `/item/${encodeURIComponent(listingId)}`;
+    }
+    if (notification.type === "MESSAGE") {
+      return "/messages";
+    }
+    return null;
+  }
+
   return (
     <div className={`modalOverlay ${closing ? "isClosing" : ""}`} role="dialog" aria-modal="true">
       <div className={`modalCard ${closing ? "isClosing" : ""}`}>
@@ -64,11 +95,29 @@ export function NotificationsModal({ open, onClose }: Props) {
         ) : notifications.length === 0 ? (
           <p className="modalSub">No new notifications right now.</p>
         ) : (
-          <ul className="modalList">
+          <ul className="modalList notificationList">
             {notifications.map((n) => (
-              <li key={n.id} className="modalListItem">
-                <div className="modalThreadTitle">{n.title}</div>
-                <div className="modalThreadMeta">{n.body}</div>
+              <li key={n.id}>
+                <button
+                  type="button"
+                  className={`modalListItem notificationCard notificationCardBtn ${!n.readAt ? "isUnread" : ""}`}
+                  onClick={() => {
+                    const href = resolveNotificationHref(n);
+                    onClose();
+                    if (href) {
+                      router.push(href);
+                    }
+                  }}
+                >
+                  <div className="notificationIcon" aria-hidden="true">{typeIcon(n.type)}</div>
+                  <div className="notificationContent">
+                    <div className="notificationHeader">
+                      <div className="modalThreadTitle">{n.title}</div>
+                      <time className="notificationTime">{new Date(n.createdAt).toLocaleString()}</time>
+                    </div>
+                    <div className="modalThreadMeta notificationBody">{n.body}</div>
+                  </div>
+                </button>
               </li>
             ))}
           </ul>

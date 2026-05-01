@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { createAdminAuditLog } from "@/lib/adminAudit";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -54,6 +55,12 @@ export async function PATCH(req: Request) {
       where: { id: reportId },
       data: { resolvedAt: new Date(), resolvedById: user.id },
     });
+    await createAdminAuditLog({
+      actorUserId: user.id,
+      action: "REPORT_RESOLVE",
+      targetType: "report",
+      targetId: reportId,
+    });
     return NextResponse.json({ report });
   }
 
@@ -65,6 +72,13 @@ export async function PATCH(req: Request) {
     const report = await prisma.report.update({
       where: { id: reportId },
       data: { resolvedAt: new Date(), resolvedById: user.id },
+    });
+    await createAdminAuditLog({
+      actorUserId: user.id,
+      action: "REPORT_DELETE_LISTING",
+      targetType: "listing",
+      targetId,
+      metadata: { reportId },
     });
     return NextResponse.json({ report });
   }
@@ -81,6 +95,13 @@ export async function PATCH(req: Request) {
     const report = await prisma.report.update({
       where: { id: reportId },
       data: { resolvedAt: new Date(), resolvedById: user.id },
+    });
+    await createAdminAuditLog({
+      actorUserId: user.id,
+      action: "REPORT_BAN_USER",
+      targetType: "user",
+      targetId,
+      metadata: { reportId, reason: reason || "Policy violation" },
     });
     return NextResponse.json({ report });
   }

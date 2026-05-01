@@ -6,6 +6,8 @@ import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 type ResetPasswordBody = {
   token?: unknown;
+  email?: unknown;
+  otp?: unknown;
   newPassword?: unknown;
   confirmPassword?: unknown;
 };
@@ -18,11 +20,13 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as ResetPasswordBody;
   const token = String(body.token || "").trim();
+  const email = String(body.email || "").trim().toLowerCase();
+  const otp = String(body.otp || "").trim();
   const newPassword = String(body.newPassword || "");
   const confirmPassword = String(body.confirmPassword || "");
 
-  if (!token || !newPassword || !confirmPassword) {
-    return NextResponse.json({ error: "Token and password fields are required." }, { status: 400 });
+  if (!newPassword || !confirmPassword) {
+    return NextResponse.json({ error: "Password fields are required." }, { status: 400 });
   }
   if (newPassword !== confirmPassword) {
     return NextResponse.json({ error: "Passwords do not match." }, { status: 400 });
@@ -33,11 +37,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: passwordError }, { status: 400 });
   }
 
-  const tokenHash = hashToken(token);
-  const resetToken = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash },
-    select: { id: true, userId: true, expiresAt: true },
-  });
+  let resetToken: { id: string; userId: string; expiresAt: Date } | null = null;
+
+  if (token) {
+    const tokenHash = hashToken(token);
+    resetToken = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      select: { id: true, userId: true, expiresAt: true },
+    });
+  } else if (email && otp) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (user) {
+      const otpHash = hashToken(`${email}:${otp}`);
+      resetToken = await prisma.passwordResetToken.findFirst({
+        where: {
+          userId: user.id,
+          tokenHash: otpHash,
+        },
+        select: { id: true, userId: true, expiresAt: true },
+      });
+    }
+  } else {
+    return NextResponse.json({ error: "Provide token or email + otp." }, { status: 400 });
+  }
 
   if (!resetToken) {
     return NextResponse.json({ error: "Invalid or expired reset token." }, { status: 400 });

@@ -481,6 +481,18 @@ function buildSubcategoryAliasRules(): Rule[] {
     RE("TV & Audio Systems", "Televisions", "TV: television", (t) =>
       /\b(tv|television|smart\s*tv|oled|qled|4k\s*tv)\b/i.test(t) && !/\b(tv\s*stand|mount)\b/i.test(t),
     ),
+    RE("TV & Audio Systems", "Projectors", "TV: projector", (t) =>
+      /\b(projector|beamer|home\s*cinema\s*projector)\b/i.test(t),
+    ),
+    RE("TV & Audio Systems", "TV Boxes & Receivers", "TV: set-top box / streaming box", (t) =>
+      /\b(tv\s*box|set[\s-]*top\s*box|receiver|decoder|android\s*tv\s*box|apple\s*tv|chromecast|roku)\b/i.test(t),
+    ),
+    RE("Mobile Devices", "Power Banks", "Mobile: power bank", (t) =>
+      /\b(power\s*bank|portable\s*charger|mah\s*power\s*bank)\b/i.test(t),
+    ),
+    RE("Mobile Devices", "Phone Chargers & Cables", "Mobile: charger / cable", (t) =>
+      /\b(phone\s*charger|usb[\s-]*c\s*cable|lightning\s*cable|charging\s*cable|fast\s*charger)\b/i.test(t),
+    ),
     RE("Home, Furniture & Appliances", "Kitchen Appliances", "Home: kitchen appliance", (t) =>
       /\b(fridge|refrigerator|freezer|microwave|oven|cooker|stove|dishwasher|blender|juicer)\b/i.test(t),
     ),
@@ -506,6 +518,39 @@ function buildSubcategoryAliasRules(): Rule[] {
     RE("Clothing & Fashion", "Shoes & Footwear", "Fashion: shoes", (t) =>
       /\b(sneakers?|boots?|sandals?|heels?|loafers?|trainers?|footwear|nike\s*air|adidas)\b/i.test(t) &&
       !/\b(phone|laptop)\b/i.test(t),
+    ),
+    RE("Clothing & Fashion", "Children's Clothing", "Fashion: kids clothing", (t) =>
+      /\b(kids?\s*(wear|clothes?|clothing)|children'?s\s*clothing|baby\s*clothes?|infant\s*outfit)\b/i.test(t),
+    ),
+    RE("Clothing & Fashion", "Wedding Wear & Accessories", "Fashion: wedding wear", (t) =>
+      /\b(wedding\s*dress|bridal\s*gown|groom\s*suit|bridal\s*veil|wedding\s*accessor(y|ies))\b/i.test(t),
+    ),
+    RE("Beauty & Personal Care", "Skincare", "Beauty: skincare", (t) =>
+      /\b(skincare|face\s*serum|moisturi[sz]er|cleanser|toner|sunscreen)\b/i.test(t),
+    ),
+    RE("Beauty & Personal Care", "Haircare", "Beauty: haircare", (t) =>
+      /\b(hair\s*oil|shampoo|conditioner|hair\s*mask|hair\s*treatment|wig)\b/i.test(t),
+    ),
+    RE("Beauty & Personal Care", "Makeup", "Beauty: makeup", (t) =>
+      /\b(makeup|foundation|lipstick|concealer|powder|mascara|eyeliner)\b/i.test(t),
+    ),
+    RE("Beauty & Personal Care", "Fragrance", "Beauty: fragrance", (t) =>
+      /\b(perfume|fragrance|eau\s*de\s*parfum|eau\s*de\s*toilette|cologne)\b/i.test(t),
+    ),
+    RE("Beauty & Personal Care", "Body Care", "Beauty: body care", (t) =>
+      /\b(body\s*lotion|body\s*wash|body\s*cream|deodorant|scrub)\b/i.test(t),
+    ),
+    RE("Beauty & Personal Care", "Men's Grooming", "Beauty: men grooming", (t) =>
+      /\b(shaving\s*kit|beard\s*oil|trimmer|aftershave|men'?s\s*grooming)\b/i.test(t),
+    ),
+    RE("Beauty & Personal Care", "Beauty Tools & Accessories", "Beauty: tools", (t) =>
+      /\b(makeup\s*brush|beauty\s*blender|hair\s*dryer|straightener|curling\s*iron)\b/i.test(t),
+    ),
+    RE("Computing & Electronics", "Computer Components", "Computing: components", (t) =>
+      /\b(cpu|processor|gpu|graphics\s*card|motherboard|ram|power\s*supply|pc\s*case)\b/i.test(t),
+    ),
+    RE("Computing & Electronics", "Storage Devices", "Computing: storage", (t) =>
+      /\b(ssd|hdd|hard\s*drive|nvme|m\.2|external\s*drive|usb\s*flash)\b/i.test(t),
     ),
     RE("Pets & Animals", "Dogs & Puppies", "Pets: dog / puppy", (t) =>
       /\b(puppy|puppies|dogs?|canine)\b/i.test(t) && !/\b(hot\s*dog|underdog)\b/i.test(t),
@@ -572,8 +617,20 @@ function buildSubcategoryAliasRules(): Rule[] {
     RE("Commercial Equipment", "Restaurant Equipment", "Commercial: restaurant / kitchen equip.", (t) =>
       /\b(restaurant\s*equipment|commercial\s*oven|industrial\s*fridge|espresso\s*machine)\b/i.test(t),
     ),
+    RE("Commercial Equipment", "Safety & Security Equipment", "Commercial: safety/security", (t) =>
+      /\b(cctv|security\s*camera|fire\s*alarm|fire\s*extinguisher|access\s*control|security\s*gate)\b/i.test(t),
+    ),
+    RE("Commercial Equipment", "Medical Equipment", "Commercial: medical", (t) =>
+      /\b(medical\s*equipment|hospital\s*bed|ultrasound|x-ray|patient\s*monitor|oxygen\s*concentrator)\b/i.test(t),
+    ),
     RE("Kids & Baby Items", "Baby Products", "Kids: baby / stroller", (t) =>
       /\b(stroller|pram|baby\s*carrier|crib|cot|diaper|baby\s*monitor)\b/i.test(t),
+    ),
+    RE("Kids & Baby Items", "Maternity Items", "Kids: maternity", (t) =>
+      /\b(maternity\s*(wear|dress|clothes?)|pregnancy\s*pillow|nursing\s*bra|breast\s*pump)\b/i.test(t),
+    ),
+    RE("Kids & Baby Items", "Strollers & Car Seats", "Kids: stroller and car seat", (t) =>
+      /\b(stroller|pram|car\s*seat|booster\s*seat)\b/i.test(t),
     ),
     RE("Vehicles", "Motorbikes & Scooters", "Vehicles: motorbike / boda", (t) =>
       /\b(motorbike|motorcycle|scooter|boda|boda-boda|yamaha\s*r\d|ducati|honda\s*cbr)\b/i.test(t) &&
@@ -590,6 +647,33 @@ function buildSubcategoryAliasRules(): Rule[] {
     ),
     RE("Vehicles", "Tires & Wheels", "Vehicles: tyres / rims", (t) =>
       /\b(tyre|tire|rims?|alloy\s*wheels?|wheel\s*set)\b/i.test(t),
+    ),
+    RE("Vehicles", "Bicycles", "Vehicles: bicycle", (t) =>
+      /\b(bicycle|bike|mountain\s*bike|road\s*bike|bmx)\b/i.test(t) &&
+      !/\b(motorbike|motorcycle)\b/i.test(t),
+    ),
+    RE("Services", "Domestic Help Services", "Services: domestic help", (t) =>
+      /\b(domestic\s*help|house\s*maid|nanny|caregiver|housekeeper)\b/i.test(t),
+    ),
+    RE("Services", "Home Tutors", "Services: tutoring", (t) =>
+      /\b(home\s*tutor|private\s*tutor|math\s*tutor|english\s*tutor|tutoring)\b/i.test(t),
+    ),
+    RE("Services", "Automotive Services", "Services: auto service", (t) =>
+      /\b(car\s*wash|car\s*repair|auto\s*repair|mechanic\s*service|wheel\s*alignment)\b/i.test(t),
+    ),
+    RE("Agriculture & Farming", "Feeds, Supplements & Agro Chemicals", "Farming: feeds / agro chemicals", (t) =>
+      /\b(animal\s*feed|poultry\s*feed|supplement|pesticide|herbicide|fungicide|agro\s*chemical)\b/i.test(t),
+    ),
+    RE("Pets & Animals", "Pet Food", "Pets: pet food", (t) =>
+      /\b(pet\s*food|dog\s*food|cat\s*food|fish\s*feed|bird\s*feed)\b/i.test(t),
+    ),
+    RE("Jobs & Employment", "Healthcare Jobs", "Jobs: healthcare", (t) =>
+      /\b(nurse|doctor|pharmacist|lab\s*technician|healthcare)\b/i.test(t) &&
+      /\b(job|vacancy|hire|hiring)\b/i.test(t),
+    ),
+    RE("Jobs & Employment", "Hospitality & Hotel Jobs", "Jobs: hospitality", (t) =>
+      /\b(hotel|hospitality|waiter|waitress|chef|barista|front\s*desk)\b/i.test(t) &&
+      /\b(job|vacancy|hire|hiring)\b/i.test(t),
     ),
   ];
 }

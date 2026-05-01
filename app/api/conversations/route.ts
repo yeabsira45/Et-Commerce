@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 
+function extractUploadIdsFromMessageBody(body: string) {
+  const matches = body.match(/\/api\/uploads\/([a-z0-9]+)/gi) || [];
+  const ids = matches
+    .map((entry) => entry.match(/\/api\/uploads\/([a-z0-9]+)/i)?.[1] || "")
+    .filter(Boolean);
+  return Array.from(new Set(ids));
+}
+
 export async function GET() {
   const user = await getSessionUser();
   if (!user) {
@@ -53,9 +61,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { listingId, message } = await req.json();
+    const payload = await req.json();
+    const listingId = typeof payload.listingId === "string" ? payload.listingId : "";
+    const message = typeof payload.message === "string" ? payload.message.trim() : "";
     if (!listingId || !message) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+    if (message.length > 4000) {
+      return NextResponse.json({ error: "Message is too long" }, { status: 400 });
     }
 
     const listing = await prisma.listing.findUnique({
@@ -102,6 +115,20 @@ export async function POST(req: Request) {
         body: message,
       },
     });
+
+    const attachmentUploadIds = extractUploadIdsFromMessageBody(message);
+    if (attachmentUploadIds.length > 0) {
+      await prisma.upload.updateMany({
+        where: {
+          id: { in: attachmentUploadIds },
+          ownerUserId: user.id,
+        },
+        data: {
+          linkedEntityType: "MESSAGE_ATTACHMENT",
+          linkedEntityId: conversation.id,
+        },
+      });
+    }
 
     await prisma.conversation.update({
       where: { id: conversation.id },

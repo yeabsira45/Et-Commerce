@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { CONSTRUCTION_MACHINERIES_REPAIRS_CATEGORY } from "@/lib/categories";
 import { uploadApiPath } from "@/lib/uploadSecurity";
 import type { Prisma } from "@prisma/client";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+
+const SEARCH_CACHE_TTL_MS = 20_000;
+const SEARCH_CACHE_MAX = 100;
+const searchCache = new Map<string, { expiresAt: number; payload: unknown }>();
 
 const CATEGORY_ALIASES: Record<string, string[]> = {
   "Real Estate": ["Real Estate", "Properties", "Property"],
@@ -60,6 +65,15 @@ function passesRange(value: number | null, min: number | undefined, max: number 
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const cacheKey = searchParams.toString();
+  const cached = searchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.payload, {
+      headers: {
+        "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60",
+      },
+    });
+  }
   const page = Math.max(1, Number(searchParams.get("page") || "1"));
   const pageSize = Math.min(20, Math.max(10, Number(searchParams.get("pageSize") || "20")));
   const skip = (page - 1) * pageSize;
@@ -237,7 +251,16 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({
+  void recordAnalyticsEvent(req, "listing_search", {
+    hasQuery: Boolean(q),
+    category: category || null,
+    subcategory: subcategory || null,
+    hasPriceFilter: Boolean(priceMin || priceMax),
+    hasLocationFilter: Boolean(location),
+    resultCount: total,
+  });
+
+  const payload = {
     page,
     pageSize,
     total,
@@ -261,5 +284,17 @@ export async function GET(req: Request) {
           }
         : null,
     })),
+  };
+
+  if (searchCache.size >= SEARCH_CACHE_MAX) {
+    const firstKey = searchCache.keys().next().value;
+    if (typeof firstKey === "string") searchCache.delete(firstKey);
+  }
+  searchCache.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, payload });
+
+  return NextResponse.json(payload, {
+    headers: {
+      "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60",
+    },
   });
 }

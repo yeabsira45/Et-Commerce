@@ -4,6 +4,14 @@ import { getSessionUser } from "@/lib/auth";
 
 type Params = { params: { id: string } };
 
+function extractUploadIdsFromMessageBody(body: string) {
+  const matches = body.match(/\/api\/uploads\/([a-z0-9]+)/gi) || [];
+  const ids = matches
+    .map((entry) => entry.match(/\/api\/uploads\/([a-z0-9]+)/i)?.[1] || "")
+    .filter(Boolean);
+  return Array.from(new Set(ids));
+}
+
 export async function GET(_req: Request, { params }: Params) {
   const user = await getSessionUser();
   if (!user) {
@@ -40,9 +48,13 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   try {
-    const { body } = await req.json();
+    const payload = await req.json();
+    const body = typeof payload.body === "string" ? payload.body.trim() : "";
     if (!body) {
       return NextResponse.json({ error: "Message body required" }, { status: 400 });
+    }
+    if (body.length > 4000) {
+      return NextResponse.json({ error: "Message is too long" }, { status: 400 });
     }
 
     const message = await prisma.message.create({
@@ -52,6 +64,20 @@ export async function POST(req: Request, { params }: Params) {
         body,
       },
     });
+
+    const attachmentUploadIds = extractUploadIdsFromMessageBody(body);
+    if (attachmentUploadIds.length > 0) {
+      await prisma.upload.updateMany({
+        where: {
+          id: { in: attachmentUploadIds },
+          ownerUserId: user.id,
+        },
+        data: {
+          linkedEntityType: "MESSAGE_ATTACHMENT",
+          linkedEntityId: conversation.id,
+        },
+      });
+    }
 
     await prisma.conversation.update({
       where: { id: conversation.id },

@@ -8,6 +8,7 @@ import { ETHIOPIAN_CITIES } from "@/lib/cities";
 import { validatePassword } from "@/lib/passwordRules";
 import { Avatar } from "./Avatar";
 import { MAX_IMAGE_UPLOAD_MB, validateImageFile } from "@/lib/imageUploadValidation";
+import { formatPhoneForStorage, normalizeLocalPhoneDigits } from "@/lib/phone";
 
 type Props = {
   open: boolean;
@@ -49,11 +50,17 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+  const [resetOtp, setResetOtp] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetOtpSent, setResetOtpSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [avatarToast, setAvatarToast] = useState<string | null>(null);
   const [inlineWelcome, setInlineWelcome] = useState<string | null>(null);
   const [registerWelcome, setRegisterWelcome] = useState<string | null>(null);
+  const [googleRedirecting, setGoogleRedirecting] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
 
   const effectiveStoreName = useMemo(() => {
@@ -130,6 +137,24 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
 
   if (!render) return null;
 
+  function continueWithGoogle() {
+    if (googleRedirecting) return;
+    setGoogleRedirecting(true);
+    window.location.href = "/api/auth/google/start";
+  }
+
+  function clearResetState() {
+    setResetOpen(false);
+    setResetEmail("");
+    setResetOtp("");
+    setResetNewPassword("");
+    setResetConfirmPassword("");
+    setResetOtpSent(false);
+    setResetLoading(false);
+    setResetError(null);
+    setResetMessage(null);
+  }
+
   const passwordsMatch = mode === "login" || password === confirmPassword;
   const passwordError = mode === "register" ? validatePassword(password) : null;
   const missingRequiredFields = mode === "register"
@@ -196,7 +221,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
         city,
         area: subcity,
         street: area.trim() || undefined,
-        phone: phone.trim(),
+        phone: formatPhoneForStorage(phone),
         profileImageFile,
       });
       ok = result.ok;
@@ -277,12 +302,22 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
               : "Create your vendor account to post listings and chat with other vendors."}
           </p>
 
+          <div className="authOauthRow">
+            <button type="button" className="authGoogleBtn" onClick={continueWithGoogle} disabled={googleRedirecting}>
+              <span className="authGoogleMark" aria-hidden="true">G</span>
+              <span>{googleRedirecting ? "Redirecting to Google..." : "Login / Signup with Google"}</span>
+            </button>
+          </div>
+          <div className="authOauthDivider" aria-hidden="true">or</div>
+
           <form ref={formRef} className={`modalForm ${mode === "register" ? "modalFormPolished" : ""}`} onSubmit={handleSubmit}>
             {mode === "login" ? (
               <>
                 <label className="modalField modalFieldFull">
                   <span className="modalLabel">Username, email, or phone</span>
                   <input
+                    name="username"
+                    type="text"
                     value={identifier}
                     onChange={(e) => {
                       setIdentifier(e.target.value);
@@ -299,6 +334,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                   <span className="modalLabel">Password</span>
                   <div className="modalPasswordWrap">
                     <input
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => {
@@ -306,6 +342,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                         setInlineWelcome(null);
                       }}
                       className="modalInput"
+                      autoComplete="current-password"
                       required
                     />
                     <button type="button" className="modalEyeBtn" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"}>
@@ -314,7 +351,16 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                   </div>
                 </label>
                 <div className={`authInlineSlot ${inlineWelcome ? "hasWelcome" : ""}`}>
-                  <button type="button" className="modalTextLink authInlineSlotLink" onClick={() => setResetOpen(true)}>
+                  <button type="button" className="modalTextLink authInlineSlotLink" onClick={() => {
+                    setResetOpen(true);
+                    setResetOtp("");
+                    setResetNewPassword("");
+                    setResetConfirmPassword("");
+                    setResetOtpSent(false);
+                    setResetLoading(false);
+                    setResetError(null);
+                    setResetMessage(null);
+                  }}>
                     Forgot Password?
                   </button>
                   <p className="modalSub modalToastInline authInlineSlotMessage">{inlineWelcome}</p>
@@ -366,7 +412,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                 </div>
                 <label className={`modalField ${missingRequiredFields?.fullName ? "modalFieldError" : ""}`} data-invalid={missingRequiredFields?.fullName ? "true" : "false"}>
                   <span className="modalLabel">Full Name</span>
-                  <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={`modalInput ${missingRequiredFields?.fullName ? "modalInputError" : ""}`} autoFocus required />
+                  <input name="name" value={fullName} onChange={(e) => setFullName(e.target.value)} className={`modalInput ${missingRequiredFields?.fullName ? "modalInputError" : ""}`} autoFocus required autoComplete="name" />
                 </label>
                 <label className="modalField">
                   <span className="modalLabel">Store Name (Optional)</span>
@@ -395,16 +441,27 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                 </label>
                 <label className={`modalField ${missingRequiredFields?.phone ? "modalFieldError" : ""}`} data-invalid={missingRequiredFields?.phone ? "true" : "false"}>
                   <span className="modalLabel">Phone Number</span>
-                  <input value={phone} onChange={(e) => setPhone(e.target.value)} className={`modalInput ${missingRequiredFields?.phone ? "modalInputError" : ""}`} required />
+                  <div className={`phoneInputWrap ${missingRequiredFields?.phone ? "modalInputError" : ""}`}>
+                    <span className="phoneInputPrefix">+251</span>
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(normalizeLocalPhoneDigits(e.target.value))}
+                      className="modalInput phoneInputControl"
+                      inputMode="numeric"
+                      pattern="[0-9]{1,10}"
+                      maxLength={10}
+                      required
+                    />
+                  </div>
                 </label>
                 <label className={`modalField ${missingRequiredFields?.email ? "modalFieldError" : ""}`} data-invalid={missingRequiredFields?.email ? "true" : "false"}>
                   <span className="modalLabel">Email</span>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={`modalInput ${missingRequiredFields?.email ? "modalInputError" : ""}`} required />
+                  <input name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={`modalInput ${missingRequiredFields?.email ? "modalInputError" : ""}`} required autoComplete="email" />
                 </label>
                 <label className={`modalField ${missingRequiredFields?.password || Boolean(passwordError) ? "modalFieldError" : ""}`} data-invalid={missingRequiredFields?.password || Boolean(passwordError) ? "true" : "false"}>
                   <span className="modalLabel">Password</span>
                   <div className="modalPasswordWrap">
-                    <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className={`modalInput ${missingRequiredFields?.password || Boolean(passwordError) ? "modalInputError" : ""}`} required />
+                    <input name="new-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className={`modalInput ${missingRequiredFields?.password || Boolean(passwordError) ? "modalInputError" : ""}`} required autoComplete="new-password" />
                     <button type="button" className="modalEyeBtn" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"}>
                       {showPassword ? "Hide" : "Show"}
                     </button>
@@ -414,7 +471,7 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                 <label className={`modalField ${missingRequiredFields?.confirmPassword || (!passwordsMatch && Boolean(confirmPassword)) ? "modalFieldError" : ""}`} data-invalid={missingRequiredFields?.confirmPassword || (!passwordsMatch && Boolean(confirmPassword)) ? "true" : "false"}>
                   <span className="modalLabel">Confirm Password</span>
                   <div className="modalPasswordWrap">
-                    <input type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`modalInput ${missingRequiredFields?.confirmPassword || (!passwordsMatch && Boolean(confirmPassword)) ? "modalInputError" : ""}`} required />
+                    <input name="confirm-password" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`modalInput ${missingRequiredFields?.confirmPassword || (!passwordsMatch && Boolean(confirmPassword)) ? "modalInputError" : ""}`} required autoComplete="new-password" />
                     <button type="button" className="modalEyeBtn" onClick={() => setShowConfirmPassword((current) => !current)} aria-label={showConfirmPassword ? "Hide password" : "Show password"}>
                       {showConfirmPassword ? "Hide" : "Show"}
                     </button>
@@ -431,7 +488,14 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
                 Cancel
               </button>
               <button type="submit" className="modalPrimary" disabled={loading}>
-                {loading ? "Please wait..." : "Continue"}
+                {loading ? (
+                  <span className="btnLoading">
+                    <span className="btnSpinner" aria-hidden="true" />
+                    <span>{mode === "login" ? "Signing in..." : "Creating account..."}</span>
+                  </span>
+                ) : (
+                  "Continue"
+                )}
               </button>
             </div>
           </form>
@@ -440,44 +504,141 @@ export function AuthModal({ open, onClose, onSuccess, initialMode }: Props) {
 
       {resetOpen ? (
         <div className="modalOverlay" role="dialog" aria-modal="true">
-          <div className="modalCard">
-            <h2 className="modalTitle">Reset password</h2>
-            <p className="modalSub">Enter the email for your account and we will prepare a reset flow next.</p>
+          <div className="modalCard authResetCard">
+            <div className="authResetHeader">
+              <div className="authResetIcon" aria-hidden="true">🔐</div>
+              <div>
+                <h2 className="modalTitle">Reset password</h2>
+                <p className="modalSub">{resetOtpSent ? "Enter the OTP code sent to your email and choose a new password." : "Enter your account email to receive a 6-digit OTP code."}</p>
+              </div>
+            </div>
             <label className="modalField modalFieldFull">
               <span className="modalLabel">Email</span>
               <input className="modalInput" placeholder="Enter your email" value={resetEmail} onChange={(e) => {
                 setResetEmail(e.target.value);
                 setResetError(null);
                 setResetMessage(null);
-              }} />
+              }} type="email" />
             </label>
+            {resetOtpSent ? (
+              <>
+                <label className="modalField modalFieldFull">
+                  <span className="modalLabel">OTP code</span>
+                  <input className="modalInput" placeholder="6-digit code" value={resetOtp} onChange={(e) => {
+                    setResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                    setResetError(null);
+                  }} />
+                </label>
+                <label className="modalField modalFieldFull">
+                  <span className="modalLabel">New password</span>
+                  <input className="modalInput" type="password" value={resetNewPassword} onChange={(e) => {
+                    setResetNewPassword(e.target.value);
+                    setResetError(null);
+                  }} />
+                </label>
+                <label className="modalField modalFieldFull">
+                  <span className="modalLabel">Confirm new password</span>
+                  <input className="modalInput" type="password" value={resetConfirmPassword} onChange={(e) => {
+                    setResetConfirmPassword(e.target.value);
+                    setResetError(null);
+                  }} />
+                </label>
+              </>
+            ) : null}
             {resetError ? <p className="modalError">{resetError}</p> : null}
-            {resetMessage ? <p className="modalSub">{resetMessage}</p> : null}
+            {resetMessage ? <p className="modalSub authResetMessage">{resetMessage}</p> : null}
             <div className="modalActions">
               <button type="button" className="modalSecondary" onClick={() => {
-                setResetOpen(false);
-                setResetEmail("");
-                setResetError(null);
-                setResetMessage(null);
+                clearResetState();
               }}>
                 Close
               </button>
               <button type="button" className="modalPrimary" onClick={() => {
-                const trimmed = resetEmail.trim();
-                if (!trimmed) {
-                  setResetError("Please enter your email address.");
+                const run = async () => {
+                  const trimmed = resetEmail.trim().toLowerCase();
+                  if (!trimmed) {
+                    setResetError("Please enter your email address.");
+                    setResetMessage(null);
+                    return;
+                  }
+                  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                    setResetError("Please enter a valid email address.");
+                    setResetMessage(null);
+                    return;
+                  }
+
+                  setResetLoading(true);
+                  setResetError(null);
                   setResetMessage(null);
-                  return;
-                }
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                  setResetError("Please enter a valid email address.");
-                  setResetMessage(null);
-                  return;
-                }
-                setResetError(null);
-                setResetMessage(`Reset link UI prepared for ${trimmed}. Backend email delivery can be wired next.`);
-              }}>
-                Send reset link
+
+                  try {
+                    if (!resetOtpSent) {
+                      const response = await fetch("/api/auth/forgot-password", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: trimmed, mode: "otp" }),
+                      });
+                      const data = await response.json().catch(() => ({}));
+                      if (!response.ok) {
+                        setResetError(data.error || "Failed to send OTP. Please try again.");
+                        return;
+                      }
+                      setResetOtpSent(true);
+                      setResetMessage("If this email exists, a 6-digit OTP has been sent. The code expires in 10 minutes.");
+                      return;
+                    }
+
+                    if (resetOtp.length !== 6) {
+                      setResetError("Please enter the 6-digit OTP code.");
+                      return;
+                    }
+                    if (!resetNewPassword || !resetConfirmPassword) {
+                      setResetError("Please enter and confirm your new password.");
+                      return;
+                    }
+                    if (resetNewPassword !== resetConfirmPassword) {
+                      setResetError("Passwords do not match.");
+                      return;
+                    }
+
+                    const passwordValidationError = validatePassword(resetNewPassword);
+                    if (passwordValidationError) {
+                      setResetError(passwordValidationError);
+                      return;
+                    }
+
+                    const response = await fetch("/api/auth/reset-password", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        email: trimmed,
+                        otp: resetOtp,
+                        newPassword: resetNewPassword,
+                        confirmPassword: resetConfirmPassword,
+                      }),
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                      setResetError(data.error || "Failed to reset password. Please try again.");
+                      return;
+                    }
+
+                    setResetMessage("Password reset successfully. Please sign in with your new password.");
+                    setResetError(null);
+                    setResetOtp("");
+                    setResetNewPassword("");
+                    setResetConfirmPassword("");
+                    setResetOtpSent(false);
+                  } catch {
+                    setResetError("Something went wrong. Please try again.");
+                  } finally {
+                    setResetLoading(false);
+                  }
+                };
+
+                void run();
+              }} disabled={resetLoading}>
+                {resetLoading ? "Please wait..." : resetOtpSent ? "Verify OTP & Reset" : "Send OTP"}
               </button>
             </div>
           </div>

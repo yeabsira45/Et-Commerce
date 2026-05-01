@@ -602,6 +602,7 @@
 }
 
 .sellPhotoPreviewCard {
+  position: relative;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid #cbd5e1;

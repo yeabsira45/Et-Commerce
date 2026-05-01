@@ -45,7 +45,7 @@ type Props = {
 };
 
 export function ListingSearch({ initialCategory, initialQuery, initialSubcategory, title, query, onQueryChange }: Props) {
-  const { savedItems, toggleSave } = useAppContext();
+  const { user, savedItems, toggleSave } = useAppContext();
   const showToast = useToast();
   const [navigatingListingId, setNavigatingListingId] = useState<string | null>(null);
   const [internalQuery, setInternalQuery] = useState(initialQuery || "");
@@ -71,6 +71,7 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
   const [results, setResults] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savingAlert, setSavingAlert] = useState(false);
 
   // Autocomplete states
   const [autocompleteQuery, setAutocompleteQuery] = useState("");
@@ -247,6 +248,53 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
   }, [category]);
 
   const activeQuery = query !== undefined ? query : internalQuery;
+
+  const buildSavedSearchPayload = useCallback(() => {
+    const payload: Record<string, string | number> = {};
+    const effectiveQuery = (query !== undefined ? query : internalQuery).trim();
+    if (effectiveQuery) payload.q = effectiveQuery;
+    if (category) payload.category = category;
+    if (forcedSubcategory) payload.subcategory = forcedSubcategory;
+    if (location) payload.location = location;
+    if (condition) payload.condition = condition;
+    if (priceMin) payload.priceMin = Number(priceMin.replace(/[^\d.]/g, ""));
+    if (priceMax) payload.priceMax = Number(priceMax.replace(/[^\d.]/g, ""));
+    return payload;
+  }, [category, condition, forcedSubcategory, internalQuery, location, priceMax, priceMin, query]);
+
+  const saveCurrentSearchAlert = useCallback(async () => {
+    if (!user) {
+      showToast("Sign in to save search alerts.", "warning");
+      return;
+    }
+    setSavingAlert(true);
+    try {
+      const queryPayload = buildSavedSearchPayload();
+      const hasAnyFilter = Object.keys(queryPayload).length > 0;
+      if (!hasAnyFilter) {
+        showToast("Add at least one filter before saving an alert.", "warning");
+        return;
+      }
+      const res = await fetch("/api/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: category ? `${category} alert` : "Saved alert",
+          query: queryPayload,
+        }),
+      });
+      if (!res.ok) {
+        showToast("Could not save alert. Please retry.", "warning");
+        return;
+      }
+      showToast("Search alert saved. You'll be notified on matching new listings.", "success");
+    } catch {
+      showToast("Could not save alert. Please retry.", "warning");
+    } finally {
+      setSavingAlert(false);
+    }
+  }, [buildSavedSearchPayload, category, showToast, user]);
+
   const filtered = results.filter((item) =>
     item.title.toLowerCase().includes(activeQuery.trim().toLowerCase())
   );
@@ -254,8 +302,8 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
   return (
     <section className="searchSection">
       {title ? <h2 className="searchTitle">{title}</h2> : null}
-      <div className="searchFilters">
-        <div ref={autocompleteWrapRef} style={{ position: "relative" }}>
+      <div className="searchFilters searchFiltersPrimary">
+        <div ref={autocompleteWrapRef} className="searchAutocompleteWrap">
           <input
             ref={inputRef}
             className="searchInput"
@@ -322,8 +370,11 @@ export function ListingSearch({ initialCategory, initialQuery, initialSubcategor
           value={priceMax}
           onChange={(e) => setPriceMax(normalizePriceInput(e.target.value))}
         />
-        <button className="searchGo" type="button" onClick={runSearch}>
+        <button className="searchGo searchActionBtn" type="button" onClick={runSearch}>
           Search
+        </button>
+        <button className="itemSecondaryBtn searchActionBtn searchAlertBtn" type="button" onClick={() => void saveCurrentSearchAlert()} disabled={savingAlert}>
+          {savingAlert ? "Saving..." : "Save Alert"}
         </button>
       </div>
       {category === "Vehicles" ? (

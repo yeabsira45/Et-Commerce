@@ -12,6 +12,7 @@ import { normalizeSellDraftForStorage } from "@/lib/sellDraftStorage";
 import { MAX_LISTING_IMAGE_FILE_BYTES, MAX_LISTING_IMAGES, sanitizeListingImageUrls } from "@/lib/listingImageRules";
 import { useToast } from "@/components/ToastProvider";
 import { MAX_IMAGE_UPLOAD_MB, validateImageFile } from "@/lib/imageUploadValidation";
+import { clearListingUndoStack } from "@/lib/listings/listingUndoStack";
 import {
   detectAllListingsFromTitle,
   detectListingFromTitle,
@@ -26,6 +27,7 @@ export default function SellPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryTouched, setCategoryTouched] = useState(false);
   const [lockedDetection, setLockedDetection] = useState<SellTitleDetection | null>(null);
+  const [lockedDetectionTitleNorm, setLockedDetectionTitleNorm] = useState<string>("");
   /** While title matches this normalized string, inline suggestions stay hidden after "I'll choose manually". */
   const [suggestionsDismissedForTitle, setSuggestionsDismissedForTitle] = useState<string | null>(null);
   const [hierarchySub, setHierarchySub] = useState<string | null>(null);
@@ -39,6 +41,25 @@ export default function SellPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
   const selectedCityNode = ETHIOPIAN_CITIES.find((city) => city.value === selectedCity);
+  const hasUnsavedSellInput = Boolean(
+    title.trim() ||
+      selectedCategory ||
+      selectedCity ||
+      selectedSubcity ||
+      hierarchySub ||
+      hierarchyItem ||
+      photos.length ||
+      photoUrls.length
+  );
+
+  const clearAllSellProgress = useCallback(() => {
+    try {
+      window.localStorage.removeItem("sellDraft");
+    } catch {
+      // ignore storage errors
+    }
+    clearListingUndoStack();
+  }, []);
 
   useEffect(() => {
     const rawDraft = window.localStorage.getItem("sellDraft");
@@ -168,12 +189,48 @@ export default function SellPage() {
     const t = title.trim();
     if (t.length < 3) {
       setLockedDetection(null);
+      setLockedDetectionTitleNorm("");
       return;
     }
     const all = detectAllListingsFromTitle(t);
     const still = all.some((d) => detectionResultKey(d) === detectionResultKey(lockedDetection));
-    if (!still) setLockedDetection(null);
+    if (!still) {
+      setLockedDetection(null);
+    }
   }, [title, lockedDetection]);
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedSellInput) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const clickCapture = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") || "";
+      const isHomeNav = href === "/" || href.startsWith("/?");
+      if (!isHomeNav || !hasUnsavedSellInput) return;
+      const ok = window.confirm(
+        "Going back home will clear everything you have filled so far, including attached images. Do you want to proceed?"
+      );
+      if (!ok) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      clearAllSellProgress();
+    };
+
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", clickCapture, true);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      document.removeEventListener("click", clickCapture, true);
+    };
+  }, [clearAllSellProgress, hasUnsavedSellInput]);
 
   const titleValid = title.trim().length >= 3;
   const canProceed = Boolean(titleValid && selectedCategory && selectedCity && selectedSubcity);
@@ -191,10 +248,13 @@ export default function SellPage() {
     allTitleDetections.length === 1 &&
     !lockedDetection &&
     !suggestionsSuppressed;
+  const titleChangedAfterDetection =
+    Boolean(lockedDetection && lockedDetectionTitleNorm && titleNorm && titleNorm !== lockedDetectionTitleNorm);
 
   function applyConfirmedDetection(d: SellTitleDetection) {
     setCategoryTouched(true);
     setLockedDetection(d);
+    setLockedDetectionTitleNorm(titleNorm);
     setSelectedCategory(d.category);
     setHierarchySub(d.subcategory);
     setHierarchyItem(d.constructionItem ?? null);
@@ -235,15 +295,12 @@ export default function SellPage() {
             className="sellClearBtn"
             type="button"
             onClick={() => {
-              try {
-                window.localStorage.removeItem("sellDraft");
-              } catch {
-                // ignore storage errors (private mode, quota, etc.)
-              }
+              clearAllSellProgress();
               setTitle("");
               setSelectedCategory(null);
               setCategoryTouched(false);
               setLockedDetection(null);
+              setLockedDetectionTitleNorm("");
               setSuggestionsDismissedForTitle(null);
               setHierarchySub(null);
               setHierarchyItem(null);
@@ -296,6 +353,7 @@ export default function SellPage() {
                       }
                     : undefined,
                 });
+                clearListingUndoStack();
                 window.localStorage.setItem("sellDraft", JSON.stringify(payload));
                 router.push(`/sell/details?category=${encodeURIComponent(selectedCategory)}`);
               }}
@@ -333,6 +391,15 @@ export default function SellPage() {
                   </label>
                   <span className="sellCounter">{title.length} / 70</span>
                 </div>
+                {titleChangedAfterDetection ? (
+                  <div className="sellDetectPanel sellDetectPanelWarn" role="alert">
+                    <div className="sellDetectTitle">Title changed after AI suggestion</div>
+                    <p className="sellFieldHint">
+                      Changing the title can affect the previously suggested category, subcategory, brand, and model.
+                      Review the suggested path before continuing.
+                    </p>
+                  </div>
+                ) : null}
                 {!titleValid && title.trim().length > 0 ? <p className="sellInlineError">Title must be at least 3 characters.</p> : null}
 
                 {showSingleSuggestion && titleDetection ? (
@@ -474,6 +541,7 @@ export default function SellPage() {
                     setCategoryTouched(true);
                     if (next !== selectedCategory) {
                       setLockedDetection(null);
+                      setLockedDetectionTitleNorm("");
                       setHierarchySub(null);
                       setHierarchyItem(null);
                     }

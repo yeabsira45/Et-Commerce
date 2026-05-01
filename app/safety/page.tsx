@@ -7,6 +7,9 @@ export default function SafetyPage() {
         <p className="modalSub">
           If a listing or user appears suspicious, stop the interaction and report the account through ET-Commerce support channels.
         </p>
+        <p className="modalSub">
+          Prefer verified users when possible, inspect products before payment, and avoid sharing one-time passwords or banking credentials.
+        </p>
       </section>
     </div>
   );

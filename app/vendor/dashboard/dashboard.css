@@ -68,13 +68,16 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fcfdff;
+  margin-bottom: 10px;
 }
 
 .adminUserRow:last-child,
 .adminListingRow:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .adminRowActions {
@@ -97,6 +100,48 @@
 .adminBadgeBanned {
   background: rgba(220, 38, 38, 0.12);
   color: #b91c1c;
+}
+
+.adminBadgeLive {
+  background: rgba(16, 185, 129, 0.18);
+  color: #047857;
+}
+
+.adminBadgePending {
+  background: rgba(245, 158, 11, 0.18);
+  color: #b45309;
+}
+
+.adminBadgeRejected {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+}
+
+.adminDashboard {
+  display: grid;
+  gap: 18px;
+}
+
+.adminDashboardTitle {
+  margin: 0;
+}
+
+.adminDashboardSub {
+  margin: 0;
+}
+
+.adminSection {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px;
+  box-shadow: 0 6px 20px rgba(2, 6, 23, 0.04);
+}
+
+.adminSectionTitle {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.05rem;
 }
 
 .adminToolbar {
@@ -223,7 +268,7 @@
   .adminUserRow,
   .adminListingRow {
     gap: 10px;
-    padding: 10px 0;
+    padding: 10px;
   }
 
   .adminRowActions {

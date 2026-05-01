@@ -9,6 +9,9 @@ export default function CopyrightPage() {
         <p className="modalSub">
           Reported content is reviewed and may be removed if a valid infringement claim is confirmed.
         </p>
+        <p className="modalSub">
+          Include proof of ownership, your contact details, and enough evidence for fast and accurate review.
+        </p>
       </section>
     </div>
   );

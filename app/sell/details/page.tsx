@@ -364,7 +364,76 @@ const MODEL_SUGGESTIONS: Record<string, string[]> = {
   Toyota: ["Corolla", "Yaris", "Vitz", "RAV4", "Hilux", "Land Cruiser"],
   Honda: ["Civic", "Accord", "CR-V"],
   Hyundai: ["Elantra", "Tucson", "Santa Fe"],
-  BYD: ["Qin", "Song Plus", "Dolphin"],
+  BYD: [
+    "Dolphin",
+    "Seagull",
+    "Dolphin Surf",
+    "Seal",
+    "Seal U",
+    "Sealion 5",
+    "Sealion 6",
+    "Sealion 7",
+    "Seal 5 DM-i",
+    "Seal 6 DM-i",
+    "Destroyer 05",
+    "Frigate 07",
+    "Qin",
+    "Qin Pro",
+    "Qin Plus",
+    "Qin L",
+    "Han",
+    "Han EV",
+    "Han DM",
+    "Han DM-i",
+    "Tang",
+    "Tang EV",
+    "Tang DM",
+    "Tang DM-i",
+    "Song",
+    "Song Pro",
+    "Song Plus",
+    "Song Max",
+    "Song L",
+    "Yuan",
+    "Yuan Pro",
+    "Yuan Plus",
+    "Yuan Up",
+    "Atto 2",
+    "Atto 3",
+    "e1",
+    "e2",
+    "e3",
+    "e5",
+    "e6",
+    "e7",
+    "D1",
+    "M3",
+    "M6",
+    "F0",
+    "F3",
+    "F3DM",
+    "F5",
+    "F6",
+    "G3",
+    "G3R",
+    "G5",
+    "G6",
+    "L3",
+    "S6",
+    "S7",
+    "Surui",
+    "Speedy",
+    "Shark",
+    "Shark 6",
+    "Denza D9",
+    "Denza N7",
+    "Denza N8",
+    "Yangwang U7",
+    "Yangwang U8",
+    "Yangwang U9",
+    "Fangchengbao Bao 5",
+    "Fangchengbao Bao 8",
+  ],
   Dell: ["XPS 13", "Latitude 5420", "Inspiron 15"],
   HP: ["EliteBook 840", "Pavilion 15", "Victus 16"],
   Lenovo: ["ThinkPad T14", "IdeaPad 5", "Legion 5"],
@@ -418,7 +487,76 @@ const VEHICLE_MODEL_SUGGESTIONS: Record<string, string[]> = {
   Subaru: ["Impreza", "Legacy", "Forester", "Outback"],
   Lexus: ["RX", "NX", "LX", "GX", "ES", "IS"],
   Tesla: ["Model 3", "Model S", "Model X", "Model Y"],
-  BYD: ["F3", "Qin", "Qin Plus", "Song", "Song Plus", "Song Pro", "Yuan Plus", "Yuan Up", "Tang", "Han", "Dolphin", "Seagull", "Seal"],
+  BYD: [
+    "Dolphin",
+    "Seagull",
+    "Dolphin Surf",
+    "Seal",
+    "Seal U",
+    "Sealion 5",
+    "Sealion 6",
+    "Sealion 7",
+    "Seal 5 DM-i",
+    "Seal 6 DM-i",
+    "Destroyer 05",
+    "Frigate 07",
+    "Qin",
+    "Qin Pro",
+    "Qin Plus",
+    "Qin L",
+    "Han",
+    "Han EV",
+    "Han DM",
+    "Han DM-i",
+    "Tang",
+    "Tang EV",
+    "Tang DM",
+    "Tang DM-i",
+    "Song",
+    "Song Pro",
+    "Song Plus",
+    "Song Max",
+    "Song L",
+    "Yuan",
+    "Yuan Pro",
+    "Yuan Plus",
+    "Yuan Up",
+    "Atto 2",
+    "Atto 3",
+    "e1",
+    "e2",
+    "e3",
+    "e5",
+    "e6",
+    "e7",
+    "D1",
+    "M3",
+    "M6",
+    "F0",
+    "F3",
+    "F3DM",
+    "F5",
+    "F6",
+    "G3",
+    "G3R",
+    "G5",
+    "G6",
+    "L3",
+    "S6",
+    "S7",
+    "Surui",
+    "Speedy",
+    "Shark",
+    "Shark 6",
+    "Denza D9",
+    "Denza N7",
+    "Denza N8",
+    "Yangwang U7",
+    "Yangwang U8",
+    "Yangwang U9",
+    "Fangchengbao Bao 5",
+    "Fangchengbao Bao 8",
+  ],
   Chery: ["Arrizo 5", "Arrizo 6", "Tiggo 2", "Tiggo 4", "Tiggo 7", "Tiggo 8"],
   Geely: ["Emgrand", "Coolray", "Atlas"],
   Changan: ["Alsvin", "Eado", "CS35", "CS55", "CS75"],
@@ -1133,9 +1271,13 @@ const ELECTRONICS_CONFIG: Record<string, ElectronicsConfig> = {
   Smartwatches: { brandOptions: ["Apple", "Samsung", "Huawei", "Amazfit", "Xiaomi", "Garmin", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"], modelSuggestions: SMARTWATCH_MODEL_SUGGESTIONS },
   "Mobile Accessories": { brandOptions: ["Anker", "Baseus", "Oraimo", "Apple", "Samsung", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
   "Mobile Spare Parts": { brandOptions: ["Samsung", "Apple", "Xiaomi", "Tecno", "Infinix", "itel", "Oppo", "Vivo", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
+  "Power Banks": { brandOptions: ["Anker", "Baseus", "Oraimo", "Xiaomi", "Samsung", "Apple", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
+  "Phone Chargers & Cables": { brandOptions: ["Anker", "Baseus", "Ugreen", "Apple", "Samsung", "Xiaomi", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
   Laptops: { brandOptions: [...LAPTOP_BRANDS, "MSI", "Microsoft", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"], modelSuggestions: LAPTOP_MODEL_SUGGESTIONS },
   "Desktop Computers": { brandOptions: ["Dell", "HP", "Lenovo", "Apple", "Asus", "Acer", "MSI", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"], modelSuggestions: DESKTOP_MODEL_SUGGESTIONS },
   "Computer Accessories": { brandGroups: buildBrandGroups(["HP", "Dell", "Lenovo", "Asus", "Acer", "TP-Link", "Samsung", "Logitech", "Razer", "Corsair", "Kingston", "SanDisk", "Sony"]), modelSuggestions: ACCESSORY_MODEL_SUGGESTIONS },
+  "Computer Components": { brandOptions: ["Intel", "AMD", "NVIDIA", "Asus", "MSI", "Gigabyte", "Corsair", "Kingston", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
+  "Storage Devices": { brandOptions: ["Samsung", "Kingston", "SanDisk", "Western Digital", "Seagate", "Crucial", "ADATA", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
   "Networking Equipment": { brandOptions: ["TP-Link", "MikroTik", "Cisco", "Netgear", "Ubiquiti", "D-Link", "Huawei", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"], modelSuggestions: NETWORKING_MODEL_SUGGESTIONS },
   "Printers & Scanners": { brandOptions: ["HP", "Canon", "Epson", "Brother", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"], modelSuggestions: PRINTER_MODEL_SUGGESTIONS },
   Software: { brandOptions: ["Microsoft", "Adobe", "Autodesk", "Kaspersky", "Local Electronics Brand", "Other"], modelSuggestions: SOFTWARE_MODEL_SUGGESTIONS, brandLabel: "Brand / Publisher", modelLabel: "Product" },
@@ -1144,6 +1286,8 @@ const ELECTRONICS_CONFIG: Record<string, ElectronicsConfig> = {
   Speakers: { brandOptions: TV_AUDIO_BRAND_MAP.Speakers, modelSuggestions: SPEAKER_MODEL_SUGGESTIONS },
   Headphones: { brandOptions: TV_AUDIO_BRAND_MAP.Headphones, modelSuggestions: HEADPHONE_MODEL_SUGGESTIONS },
   "DVD & Media Players": { brandOptions: TV_AUDIO_BRAND_MAP["DVD & Media Players"], modelSuggestions: DVD_MODEL_SUGGESTIONS },
+  Projectors: { brandOptions: ["Epson", "BenQ", "ViewSonic", "Sony", "LG", "XGIMI", "Hisense", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
+  "TV Boxes & Receivers": { brandOptions: ["Apple", "Google", "Xiaomi", "Amazon", "Roku", "Nvidia", ...ETHIOPIAN_ELECTRONICS_BRANDS, "Other"] },
 };
 
 const DETAIL_KEYS_TO_PRESERVE = new Set([
@@ -1200,29 +1344,18 @@ const ELECTRONICS_SUBCATEGORY_SCHEMA = new Set([
   ...(CATEGORY_SUBCATEGORIES["TV & Audio Systems"] || []),
 ]);
 const ELECTRONICS_RENDERED_SUBCATEGORIES = new Set([
-  "Smartphones",
-  "Feature Phones",
-  "Tablets",
-  "Smartwatches",
-  "Mobile Accessories",
-  "Mobile Spare Parts",
-  "Laptops",
-  "Desktop Computers",
-  "Computer Accessories",
-  "Networking Equipment",
-  "Printers & Scanners",
-  "Software",
-  "Televisions",
-  "Home Theater Systems",
-  "Speakers",
-  "Headphones",
-  "DVD & Media Players",
+  ...Object.keys(ELECTRONICS_CONFIG),
+  ...(CATEGORY_SUBCATEGORIES["Mobile Devices"] || []),
+  ...(CATEGORY_SUBCATEGORIES["Computing & Electronics"] || []),
+  ...(CATEGORY_SUBCATEGORIES["TV & Audio Systems"] || []),
   "Other",
 ]);
 const REAL_ESTATE_SUBCATEGORY_SCHEMA = new Set(CATEGORY_SUBCATEGORIES["Real Estate"] || []);
 
 const APPLE_MOBILE_SUBCATEGORIES = new Set(["Smartphones", "Feature Phones", "Tablets"]);
 const APPLE_IOS_BRANDS = new Set(["Apple"]);
+const LAPTOP_DESKTOP_SUBCATEGORIES = new Set(["Laptops", "Desktop Computers"]);
+const APPLE_OS_VALUE_RE = /^(mac\s*os|macos|ios)/i;
 
 const PHONE_OS_BY_BRAND: Record<string, string> = {
   Apple: "iOS",
@@ -1274,10 +1407,12 @@ export default function SellDetailsPage() {
   const [condition, setCondition] = useState<"NEW" | "USED">("USED");
   const [submitting, setSubmitting] = useState(false);
   const [titleError, setTitleError] = useState("");
+  const [aiSuggestionTitleBaseline, setAiSuggestionTitleBaseline] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [submitToast, setSubmitToast] = useState("");
   const [taxonomyChangeModal, setTaxonomyChangeModal] = useState<null | { kind: "category" | "subcategory"; target: string }>(null);
+  const [brandModelChangeModal, setBrandModelChangeModal] = useState<null | { key: string; value: string; label: string }>(null);
   const [showUndoBanner, setShowUndoBanner] = useState(false);
   const isElectronicsCategory = Boolean(draft && ["Mobile Devices", "Computing & Electronics", "TV & Audio Systems"].includes(draft.category));
   const detectionPrefillTokenRef = useRef<string>("");
@@ -1304,6 +1439,34 @@ export default function SellDetailsPage() {
         draft?.constructionItem ?? "",
       ].join("|"),
     [draft?.constructionItem, draft?.detectedHints]
+  );
+  const titleChangedAfterAiSuggestion = Boolean(
+    draft?.detectedHints &&
+      aiSuggestionTitleBaseline &&
+      draft?.title.trim().toLowerCase() !== aiSuggestionTitleBaseline.trim().toLowerCase()
+  );
+  const hasUnsavedSellInput = Boolean(
+    draft &&
+      (draft.title.trim() ||
+        draft.category ||
+        draft.city ||
+        draft.area ||
+        draft.images.length ||
+        Object.values(details).some((value) => String(value || "").trim() !== "") ||
+        price.trim() ||
+        description.trim())
+  );
+
+  const clearAllSellProgress = useMemo(
+    () => () => {
+      try {
+        window.localStorage.removeItem("sellDraft");
+      } catch {
+        // ignore storage errors
+      }
+      clearListingUndoStack();
+    },
+    []
   );
 
   useEffect(() => {
@@ -1337,6 +1500,7 @@ export default function SellDetailsPage() {
     }
 
     setDraft(nextDraft);
+    setAiSuggestionTitleBaseline(nextDraft.detectedHints ? nextDraft.title : "");
     let savedSubcategory = nextDraft.subcategory;
     if (nextDraft.category === "Real Estate" && savedSubcategory) {
       savedSubcategory = normalizeRealEstateSubcategory(savedSubcategory);
@@ -1360,6 +1524,13 @@ export default function SellDetailsPage() {
     }
     setTitleError(nextDraft.title.trim().length < 3 ? "Title must be at least 3 characters." : "");
   }, [category, showToast]);
+
+  useEffect(() => {
+    if (!draft) return;
+    if (draft.images.length > 0) return;
+    showToast("Please upload at least one image in step 1 before opening listing details.", "warning");
+    router.replace("/sell");
+  }, [draft, router, showToast]);
 
   useEffect(() => {
     if (!draft?.category || !subCategory) return;
@@ -1401,6 +1572,18 @@ export default function SellDetailsPage() {
       setDetails((prev) => ({ ...prev, "Product Type": "" }));
     }
   }, [details, draft?.category, subCategory]);
+
+  useEffect(() => {
+    if (!LAPTOP_DESKTOP_SUBCATEGORIES.has(subCategory)) return;
+    const brand = (details["Brand"] || "").trim();
+    const os = (details["Operating System"] || "").trim();
+    if (!brand || !os) return;
+    const isAppleBrand = brand.toLowerCase() === "apple";
+    const isAppleOs = APPLE_OS_VALUE_RE.test(os);
+    if ((isAppleBrand && !isAppleOs) || (!isAppleBrand && isAppleOs)) {
+      setDetails((prev) => ({ ...prev, "Operating System": "", "Computer OS Other": "" }));
+    }
+  }, [details, subCategory]);
 
   useEffect(() => {
     if (!subCategory) return;
@@ -1535,6 +1718,39 @@ export default function SellDetailsPage() {
     return () => window.clearTimeout(timer);
   }, [submitToast]);
 
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedSellInput) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const clickCapture = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") || "";
+      const isHomeNav = href === "/" || href.startsWith("/?");
+      if (!isHomeNav || !hasUnsavedSellInput) return;
+      const ok = window.confirm(
+        "Going back home will clear everything you have filled so far, including attached images. Do you want to proceed?"
+      );
+      if (!ok) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      clearAllSellProgress();
+    };
+
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", clickCapture, true);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      document.removeEventListener("click", clickCapture, true);
+    };
+  }, [clearAllSellProgress, hasUnsavedSellInput]);
+
   function setDetail(key: string, value: string) {
     userTouchedDetailKeysRef.current.add(key);
     setDetails((prev) => ({ ...prev, [key]: value }));
@@ -1549,6 +1765,21 @@ export default function SellDetailsPage() {
   function setDescriptionValue(value: string) {
     setDescription(value);
     setDetail("Description", value);
+  }
+
+  function setTitleValue(value: string) {
+    const nextTitle = value.slice(0, 70);
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const nextDraft = { ...prev, title: nextTitle };
+      try {
+        window.localStorage.setItem("sellDraft", JSON.stringify(nextDraft));
+      } catch {
+        // ignore storage sync issues
+      }
+      return nextDraft;
+    });
+    setTitleError(nextTitle.trim().length < 3 ? "Title must be at least 3 characters." : "");
   }
 
   function setConditionValue(value: string) {
@@ -1666,6 +1897,26 @@ export default function SellDetailsPage() {
     }
   }
 
+  function requestBrandModelChange(key: string, value: string) {
+    const normalizedKey = key.trim().toLowerCase();
+    const isSensitive = normalizedKey === "brand" || normalizedKey === "model";
+    if (!isSensitive) {
+      setDetail(key, value);
+      return;
+    }
+    if ((details[key] || "") === value) return;
+    if (hasMeaningfulListingInput(details, price, description)) {
+      setBrandModelChangeModal({
+        key,
+        value,
+        label: normalizedKey === "brand" ? "brand" : "model",
+      });
+      return;
+    }
+    runAtomicFormReset();
+    setDetail(key, value);
+  }
+
   function confirmTaxonomyModal() {
     if (!taxonomyChangeModal || !draft) {
       setTaxonomyChangeModal(null);
@@ -1685,6 +1936,28 @@ export default function SellDetailsPage() {
     if (kind === "category") applyConfirmedCategoryChange(target);
     else applyConfirmedSubcategoryChange(target);
     logListingAudit("listing.sell.taxonomy_confirm", { kind, target });
+  }
+
+  function confirmBrandModelChange() {
+    if (!brandModelChangeModal || !draft) {
+      setBrandModelChangeModal(null);
+      return;
+    }
+    const { key, value, label } = brandModelChangeModal;
+    pushListingUndoFrame({
+      reason: "taxonomy_change",
+      details: { ...details },
+      price,
+      description,
+      condition,
+      subCategory: subCategory,
+      draftJson: JSON.stringify(draft),
+    });
+    setShowUndoBanner(true);
+    runAtomicFormReset({ skipUndoSnapshot: true });
+    setDetail(key, value);
+    setBrandModelChangeModal(null);
+    logListingAudit("listing.sell.brand_model_change_confirm", { key, label, value });
   }
 
   function restoreListingUndo() {
@@ -1776,8 +2049,12 @@ export default function SellDetailsPage() {
       }
 
       setSubmitting(false);
-      setSubmitSuccess("Item posted successfully");
-      setSubmitToast("Item posted successfully");
+      const moderationEnabled = process.env.NEXT_PUBLIC_REQUIRE_LISTING_MODERATION === "true";
+      const successMessage = moderationEnabled
+        ? "Item submitted successfully and is pending moderation review."
+        : "Item posted successfully and is now visible on the site.";
+      setSubmitSuccess(successMessage);
+      setSubmitToast(successMessage);
       clearListingUndoStack();
       setShowUndoBanner(false);
       window.localStorage.removeItem("sellDraft");
@@ -1792,6 +2069,7 @@ export default function SellDetailsPage() {
 
   if (!category) return <PageState text="Select a category first from the previous step." />;
   if (!draft) return <PageState text="Please complete the first step of your listing before continuing." />;
+  if (draft.images.length === 0) return <PageState text="Please upload at least one image in step 1 before continuing." />;
   if (!user) return <PageState text="Please sign in to post a listing." />;
 
   return (
@@ -1848,6 +2126,33 @@ export default function SellDetailsPage() {
           </div>
         </div>
       ) : null}
+      {brandModelChangeModal ? (
+        <div
+          className="sellModalOverlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="brand-model-change-title"
+          onClick={() => setBrandModelChangeModal(null)}
+        >
+          <div className="sellModalCard" onClick={(e) => e.stopPropagation()}>
+            <h2 id="brand-model-change-title" className="sellModalTitle">
+              Change {brandModelChangeModal.label}?
+            </h2>
+            <p className="sellModalBody">
+              Changing the {brandModelChangeModal.label} will permanently clear all listing details you have already entered
+              (including any detected or prefilled values, price, and description).
+            </p>
+            <div className="sellModalActions">
+              <button type="button" className="sellModalBtn sellModalBtnGhost" onClick={() => setBrandModelChangeModal(null)}>
+                Cancel
+              </button>
+              <button type="button" className="sellModalBtn sellModalBtnPrimary" onClick={confirmBrandModelChange}>
+                Clear data and continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="sellHeaderBar">
         <div className="sellHeaderInner">
           <h1 className="sellHeaderTitle">Post ad</h1>
@@ -1862,7 +2167,12 @@ export default function SellDetailsPage() {
               <div className="sellGrid">
                 <label className="sellField">
                   <span className="sellFieldLabel">Title</span>
-                  <input className="sellInput" value={draft.title} readOnly />
+                  <input
+                    className="sellInput"
+                    value={draft.title}
+                    onChange={(e) => setTitleValue(e.target.value)}
+                    maxLength={70}
+                  />
                 </label>
                 <SearchableSelect
                   label="Category"
@@ -1880,6 +2190,14 @@ export default function SellDetailsPage() {
                   <input className="sellInput" value={draft.subcity || draft.area} readOnly />
                 </label>
               </div>
+              {titleChangedAfterAiSuggestion ? (
+                <div className="sellDetectPanel sellDetectPanelWarn" role="alert">
+                  <div className="sellDetectTitle">Title changed after AI suggestion</div>
+                  <p className="sellFieldHint">
+                    You changed the title after accepting the AI suggestion. Category, subcategory, and model hints may no longer match this title.
+                  </p>
+                </div>
+              ) : null}
               {titleError ? <p className="sellInlineError">{titleError}</p> : null}
             </div>
 
@@ -1917,11 +2235,11 @@ export default function SellDetailsPage() {
             </div>
 
             {draft.category === "Vehicles" ? (
-              <VehicleForm details={details} subcategory={subCategory} onField={setDetail} onPrice={setPriceValue} onDescription={setDescriptionValue} onCondition={setConditionValue} />
+              <VehicleForm details={details} subcategory={subCategory} onField={requestBrandModelChange} onPrice={setPriceValue} onDescription={setDescriptionValue} onCondition={setConditionValue} />
             ) : ["Mobile Devices", "Computing & Electronics", "TV & Audio Systems"].includes(draft.category) ? (
-              <ElectronicsForm key={`${draft.category}-${subCategory}`} category={draft.category} details={details} subcategory={subCategory} onField={setDetail} onPrice={setPriceValue} onDescription={setDescriptionValue} onCondition={setConditionValue} />
+              <ElectronicsForm key={`${draft.category}-${subCategory}`} category={draft.category} details={details} subcategory={subCategory} onField={requestBrandModelChange} onPrice={setPriceValue} onDescription={setDescriptionValue} onCondition={setConditionValue} />
             ) : (
-              <CategoryForm category={draft.category} details={details} subcategory={subCategory} onField={setDetail} onPrice={setPriceValue} onDescription={setDescriptionValue} onCondition={setConditionValue} />
+              <CategoryForm category={draft.category} details={details} subcategory={subCategory} onField={requestBrandModelChange} onPrice={setPriceValue} onDescription={setDescriptionValue} onCondition={setConditionValue} />
             )}
 
             <button type="button" className="sellNextBtn" disabled={!canPost || submitting} onClick={submitListing}>
@@ -2701,11 +3019,16 @@ function LaptopDesktopOsSection({
   details: Record<string, string>;
   onField: (key: string, value: string) => void;
 }) {
+  const brand = (details["Brand"] || "").trim();
+  const isAppleBrand = brand.toLowerCase() === "apple";
   const os = details["Operating System"] || "";
+  const filteredBase = LAPTOP_DESKTOP_OS_OPTIONS.filter((option) =>
+    isAppleBrand ? APPLE_OS_VALUE_RE.test(option) || option === "Other" : !APPLE_OS_VALUE_RE.test(option)
+  );
   const osOptions =
-    os && !LAPTOP_DESKTOP_OS_OPTIONS.includes(os)
-      ? [...LAPTOP_DESKTOP_OS_OPTIONS.filter((o) => o !== "Other"), os, "Other"]
-      : LAPTOP_DESKTOP_OS_OPTIONS;
+    os && !filteredBase.includes(os)
+      ? [...filteredBase.filter((o) => o !== "Other"), os, "Other"]
+      : filteredBase;
   return (
     <>
       <SearchableSelect

@@ -9,6 +9,9 @@ export default function CookiesPage() {
         <p className="modalSub">
           These cookies help keep users signed in securely and support core features such as dashboard access and messaging.
         </p>
+        <p className="modalSub">
+          Disabling essential cookies may limit login persistence and other core platform functionality.
+        </p>
       </section>
     </div>
   );

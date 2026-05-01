@@ -19,6 +19,11 @@ export async function GET() {
             profileImageUrl: user.vendor.profileImageUploadId
               ? uploadApiPath(user.vendor.profileImageUploadId)
               : null,
+            trustBadges: [
+              ...(user.vendor.phoneVerificationStatus === "VERIFIED" ? ["Phone verified"] : []),
+              ...(user.vendor.idVerificationStatus === "VERIFIED" ? ["ID verified"] : []),
+              ...(user.vendor.addressVerificationStatus === "VERIFIED" ? ["Address verified"] : []),
+            ],
           }
         : null,
     },

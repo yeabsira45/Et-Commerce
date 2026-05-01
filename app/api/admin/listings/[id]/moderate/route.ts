@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { createAdminAuditLog } from "@/lib/adminAudit";
 
 type Params = { params: { id: string } };
 
@@ -68,6 +69,14 @@ export async function POST(req: Request, { params }: Params) {
         action: action === "approve" ? "listing_approved" : "listing_rejected",
       },
     },
+  });
+
+  await createAdminAuditLog({
+    actorUserId: user.id,
+    action: action === "approve" ? "LISTING_APPROVE" : "LISTING_REJECT",
+    targetType: "listing",
+    targetId: existing.id,
+    metadata: { reason: reason || null },
   });
 
   return NextResponse.json({ listing });

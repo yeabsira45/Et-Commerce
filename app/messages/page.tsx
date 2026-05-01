@@ -6,12 +6,14 @@ import Link from "next/link";
 import { useAppContext } from "@/components/AppContext";
 import { Avatar } from "@/components/Avatar";
 import { useToast } from "@/components/ToastProvider";
+import { validateImageFile } from "@/lib/imageUploadValidation";
 
 type Message = {
   id: string;
   senderId: string;
   body: string;
   createdAt: string;
+  seenAt?: string | null;
 };
 
 type TabKey = "all" | "unread" | "sent";
@@ -20,6 +22,47 @@ function formatTime(value?: string) {
   if (!value) return "";
   const date = new Date(value);
   return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function renderReceiptMark(message: Message, currentUserId?: string) {
+  if (!currentUserId || message.senderId !== currentUserId) return null;
+  if (message.seenAt) {
+    return <span className="messagesReceipt messagesReceiptSeen" aria-label="Seen">✓✓</span>;
+  }
+  return <span className="messagesReceipt" aria-label="Sent">✓</span>;
+}
+
+type AttachmentMessageParts = {
+  uploadId: string | null;
+  imageUrl: string | null;
+  text: string;
+};
+
+function parseAttachmentMessage(rawBody: string): AttachmentMessageParts {
+  if (rawBody.startsWith("__ATTACHMENT__:")) {
+    const [, payloadRaw] = rawBody.split("__ATTACHMENT__:");
+    const [jsonLine, ...rest] = payloadRaw.split("\n");
+    try {
+      const parsed = JSON.parse(jsonLine) as { uploadId?: string; url?: string };
+      return {
+        uploadId: typeof parsed.uploadId === "string" ? parsed.uploadId : null,
+        imageUrl: typeof parsed.url === "string" ? parsed.url : null,
+        text: rest.join("\n").trim(),
+      };
+    } catch {
+      return { uploadId: null, imageUrl: null, text: rawBody };
+    }
+  }
+  if (rawBody.startsWith("__IMAGE__:")) {
+    const [, rawContent] = rawBody.split("__IMAGE__:");
+    const [firstLine, ...rest] = rawContent.split("\n");
+    return {
+      uploadId: null,
+      imageUrl: firstLine?.trim() || null,
+      text: rest.join("\n").trim(),
+    };
+  }
+  return { uploadId: null, imageUrl: null, text: rawBody };
 }
 
 export default function MessagesPage() {
@@ -38,6 +81,7 @@ export default function MessagesPage() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [threadError, setThreadError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [sendingImage, setSendingImage] = useState(false);
   const [threadReloadNonce, setThreadReloadNonce] = useState(0);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -147,6 +191,21 @@ export default function MessagesPage() {
   }, [activeConversation?.id, loadConversations, threadReloadNonce, user]);
 
   useEffect(() => {
+    if (!activeConversation?.id || !user) return;
+    const conversationId = activeConversation.id;
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      void (async () => {
+        const res = await fetch(`/api/conversations/${conversationId}/messages`, { cache: "no-store" }).catch(() => null);
+        if (!res?.ok) return;
+        const data = await res.json().catch(() => ({ messages: [] }));
+        setMessages(data.messages || []);
+      })();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [activeConversation?.id, user]);
+
+  useEffect(() => {
     const unsub = subscribeSocket("message:new", (payload) => {
       if (activeConversation?.id && payload.conversationId === activeConversation.id) {
         setMessages((prev) => {
@@ -216,6 +275,42 @@ export default function MessagesPage() {
       return;
     }
     setDraft("");
+  }
+
+  async function handleImageUpload(file: File) {
+    if (!activeConversation?.id) return;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      showToast(validationError, "warning");
+      return;
+    }
+    setSendingImage(true);
+    try {
+      const form = new FormData();
+      form.append("files", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      if (!uploadRes.ok) {
+        showToast("Image upload failed.", "error");
+        return;
+      }
+      const uploadData = (await uploadRes.json().catch(() => ({}))) as { uploads?: Array<{ id?: string; url?: string }> };
+      const uploadId = uploadData.uploads?.[0]?.id;
+      const imageUrl = uploadData.uploads?.[0]?.url;
+      if (!imageUrl || !uploadId) {
+        showToast("Image upload failed.", "error");
+        return;
+      }
+      const payload = `__ATTACHMENT__:${JSON.stringify({ uploadId, url: imageUrl })}${draft.trim() ? `\n${draft.trim()}` : ""}`;
+      const ok = await sendMessage(activeConversation.id, payload);
+      if (!ok) {
+        await fetch(`/api/uploads/${uploadId}`, { method: "DELETE" }).catch(() => null);
+        showToast("Could not send image message.", "error");
+        return;
+      }
+      setDraft("");
+    } finally {
+      setSendingImage(false);
+    }
   }
 
   if (!user) {
@@ -309,7 +404,11 @@ export default function MessagesPage() {
                         </div>
                         <div className="messagesConversationMeta">{conversation.listing?.title}</div>
                         <div className="messagesConversationRow">
-                          <span className="messagesPreview">{conversation.messages?.[0]?.body || "No messages yet"}</span>
+                          <span className="messagesPreview">
+                            {conversation.messages?.[0]?.body?.startsWith("__IMAGE__:") || conversation.messages?.[0]?.body?.startsWith("__ATTACHMENT__:")
+                              ? "Image"
+                              : conversation.messages?.[0]?.body || "No messages yet"}
+                          </span>
                           {(conversation.unreadCount || 0) > 0 ? <span className="messagesUnreadBadge">{conversation.unreadCount}</span> : null}
                         </div>
                       </div>
@@ -385,12 +484,22 @@ export default function MessagesPage() {
                     </button>
                   </div>
                 ) : null}
-                {!loadingThread && !threadError && messages.map((message) => (
-                  <div key={message.id} className={`messagesBubble ${message.senderId === user.id ? "isMine" : ""}`}>
-                    <div>{message.body}</div>
-                    <div className="messagesBubbleTime">{formatTime(message.createdAt)}</div>
-                  </div>
-                ))}
+                {!loadingThread && !threadError && messages.map((message) => {
+                  const parsed = parseAttachmentMessage(message.body);
+                  return (
+                    <div key={message.id} className={`messagesBubble ${message.senderId === user.id ? "isMine" : ""}`}>
+                      {parsed.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={parsed.imageUrl} alt="Sent attachment" className="messagesBubbleImage" />
+                      ) : null}
+                      {parsed.text ? <div className="messagesBubbleText">{parsed.text}</div> : null}
+                      <div className="messagesBubbleMeta">
+                        <span className="messagesBubbleTime">{formatTime(message.createdAt)}</span>
+                        {renderReceiptMark(message, user.id)}
+                      </div>
+                    </div>
+                  );
+                })}
                 <div ref={bottomRef} />
               </div>
               {showNewMessageIndicator ? (
@@ -416,20 +525,37 @@ export default function MessagesPage() {
                   size={40}
                   className="messagesComposerAvatar"
                 />
-                <input
+                <textarea
                   className="messagesComposerInput"
                   value={draft}
-                  disabled={sending || loadingThread || Boolean(threadError)}
+                  disabled={sending || sendingImage || loadingThread || Boolean(threadError)}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Hi, is this still available?"
+                  rows={2}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
+                    if (e.key !== "Enter") return;
+                    if (e.shiftKey) return;
+                    e.preventDefault();
+                    void handleSend();
                   }}
                 />
-                <button className="messagesSendBtn" type="button" onClick={handleSend} disabled={sending || loadingThread || Boolean(threadError)}>
+                <label className="messagesAttachBtn" aria-disabled={sendingImage || sending || loadingThread || Boolean(threadError)}>
+                  {sendingImage ? "Uploading..." : "📎"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="srOnly"
+                    disabled={sendingImage || sending || loadingThread || Boolean(threadError)}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        void handleImageUpload(file);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <button className="messagesSendBtn" type="button" onClick={() => void handleSend()} disabled={sending || sendingImage || loadingThread || Boolean(threadError)}>
                   {sending ? "Sending..." : "Send"}
                 </button>
               </div>

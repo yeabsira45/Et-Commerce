@@ -10,6 +10,20 @@ import { getUploadMetaFromCache, setUploadMetaCache } from "@/lib/uploadMetaCach
 
 type Params = { params: { id: string } };
 
+async function hasConversationAttachmentAccess(userId: string, uploadId: string) {
+  const marker = `/api/uploads/${uploadId}`;
+  const message = await prisma.message.findFirst({
+    where: {
+      body: { contains: marker },
+      conversation: {
+        OR: [{ requesterId: userId }, { ownerId: userId }],
+      },
+    },
+    select: { id: true },
+  });
+  return Boolean(message);
+}
+
 async function getUploadMeta(uploadId: string) {
   const cached = getUploadMetaFromCache(uploadId);
   if (cached && isPublicUploadEntityType(cached.linkedEntityType)) {
@@ -19,6 +33,7 @@ async function getUploadMeta(uploadId: string) {
       mimeType: cached.mimeType,
       ownerUserId: null as string | null,
       linkedEntityType: cached.linkedEntityType,
+      linkedEntityId: null as string | null,
     };
   }
 
@@ -30,6 +45,7 @@ async function getUploadMeta(uploadId: string) {
       mimeType: true,
       ownerUserId: true,
       linkedEntityType: true,
+      linkedEntityId: true,
     },
   });
   if (!upload) return null;
@@ -51,7 +67,21 @@ export async function GET(_req: Request, { params }: Params) {
   const isPublicAsset = isPublicUploadEntityType(upload.linkedEntityType);
   if (!isPublicAsset) {
     const user = await getSessionUser();
-    if (!user || !upload.ownerUserId || upload.ownerUserId !== user.id) {
+    const isOwner = Boolean(user && upload.ownerUserId && upload.ownerUserId === user.id);
+    let hasAttachmentAccess = false;
+    if (user && upload.linkedEntityType === "MESSAGE_ATTACHMENT" && upload.linkedEntityId) {
+      const allowedConversation = await prisma.conversation.findFirst({
+        where: {
+          id: upload.linkedEntityId,
+          OR: [{ requesterId: user.id }, { ownerId: user.id }],
+        },
+        select: { id: true },
+      });
+      hasAttachmentAccess = Boolean(allowedConversation);
+    } else if (user) {
+      hasAttachmentAccess = await hasConversationAttachmentAccess(user.id, upload.id);
+    }
+    if (!isOwner && !hasAttachmentAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
@@ -75,4 +105,37 @@ export async function GET(_req: Request, { params }: Params) {
       "X-Content-Type-Options": "nosniff",
     },
   });
+}
+
+export async function DELETE(_req: Request, { params }: Params) {
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  const upload = await prisma.upload.findUnique({
+    where: { id: params.id },
+    select: {
+      id: true,
+      path: true,
+      ownerUserId: true,
+      linkedEntityType: true,
+      linkedEntityId: true,
+    },
+  });
+  if (!upload) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (upload.ownerUserId !== user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (upload.linkedEntityType || upload.linkedEntityId) {
+    return NextResponse.json({ error: "Upload is already linked and cannot be removed." }, { status: 400 });
+  }
+
+  const filePath = path.join(PRIVATE_UPLOAD_DIR, upload.path);
+  await fs.unlink(filePath).catch(() => null);
+  await prisma.upload.delete({ where: { id: upload.id } });
+
+  return NextResponse.json({ ok: true });
 }

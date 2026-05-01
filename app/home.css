@@ -2,15 +2,20 @@
 
 /* Header */
 .topbar {
-  background: var(--brand);
+  background:
+    radial-gradient(circle at 34% 34%, rgba(128, 255, 166, 0.42) 0%, transparent 40%),
+    radial-gradient(circle at 72% 22%, rgba(91, 233, 208, 0.24) 0%, transparent 34%),
+    linear-gradient(102deg, #0fbf67 0%, #14c97f 48%, #1fbba5 100%);
   color: var(--brand-ink);
+  border-bottom: 0;
 }
 
 .topbarInner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
+  height: 86px;
+  gap: 10px;
 }
 
 .brand {
@@ -25,16 +30,20 @@
 .brandTitle {
   font-weight: 900;
   letter-spacing: 0.45px;
-  font-size: 22px;
+  font-size: 50px;
   line-height: 1.05;
+  color: #ffffff;
+  text-shadow: 0 3px 12px rgba(4, 24, 10, 0.35);
 }
 
 .brandSub {
-  font-size: 11px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: 0.35px;
-  opacity: 0.78;
+  opacity: 0.95;
   text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 2px 8px rgba(4, 24, 10, 0.32);
 }
 
 .topActions {
@@ -47,16 +56,17 @@
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(196, 255, 228, 0.45);
+  background: rgba(12, 97, 84, 0.68);
   color: #fff;
   display: grid;
   place-items: center;
   cursor: pointer;
+  box-shadow: 0 8px 18px rgba(5, 46, 41, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .iconBtn:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(10, 86, 74, 0.88);
 }
 
 .pillBtn {
@@ -74,23 +84,31 @@
 }
 
 .vendorBtn {
-  background: rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, rgba(17, 126, 109, 0.96) 0%, rgba(11, 99, 86, 0.96) 100%);
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(192, 255, 224, 0.55);
+  box-shadow: 0 10px 22px rgba(5, 57, 49, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 
 /* Hero search */
 .hero {
-  background: var(--brand);
-  padding: 50px 0 62px;
+  background:
+    radial-gradient(circle at 36% 34%, rgba(133, 255, 162, 0.44) 0%, transparent 36%),
+    radial-gradient(circle at 68% 20%, rgba(97, 238, 198, 0.24) 0%, transparent 32%),
+    linear-gradient(102deg, #0ebe62 0%, #14c777 50%, #21c8a9 100%);
+  padding: 64px 0 112px;
+  position: relative;
+  overflow: hidden;
 }
+
 
 .heroTitle {
   color: #fff;
   text-align: center;
-  font-size: 44px;
+  font-size: 72px;
   font-weight: 900;
-  margin: 0 0 22px;
+  margin: 0 0 30px;
+  text-shadow: 0 3px 16px rgba(4, 24, 10, 0.35);
 }
 
 .searchRow {
@@ -99,25 +117,26 @@
 }
 
 .searchBar {
-  width: min(780px, 100%);
+  width: min(980px, 100%);
   display: grid;
-  grid-template-columns: 180px 1fr 56px;
+  grid-template-columns: 250px 1fr 74px;
   gap: 10px;
 }
 
 .select,
 .searchInput,
 .searchGo {
-  height: 54px;
-  border-radius: 10px;
+  height: 72px;
+  border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.18);
 }
 
 .select,
 .searchInput {
-  padding: 0 14px;
+  padding: 0 18px;
   background: #fff;
   color: var(--text);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16);
 }
 
 .searchGo {
@@ -126,6 +145,7 @@
   display: grid;
   place-items: center;
   border: 0;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16);
 }
 
 /* Body layout */
@@ -451,6 +471,9 @@
 
 .section {
   margin-top: 18px;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
 }
 
 .trendingRow {
@@ -792,17 +815,35 @@
 @media (max-width: 640px) {
   .topbarInner {
     height: auto;
-    min-height: 64px;
+    min-height: 74px;
     padding: 8px 0;
     gap: 10px;
     align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .searchBar {
     grid-template-columns: 1fr;
   }
 
+  .brandTitle {
+    font-size: 30px;
+  }
+
+  .brandSub {
+    font-size: 13px;
+  }
+
+  .hero {
+    padding: 34px 0 74px;
+  }
+
+  .heroTitle {
+    font-size: 44px;
+  }
+
   .searchFilters {
+    grid-template-columns: 1fr !important;
     gap: 8px;
   }
 
@@ -822,11 +863,18 @@
     width: 100%;
   }
 
+  .searchSection,
+  .searchSection .searchFilters,
+  .searchSection .productGrid {
+    overflow: visible;
+  }
+
   .topActions {
     gap: 6px;
     flex-wrap: wrap;
     justify-content: flex-end;
-    max-width: 62%;
+    width: 100%;
+    max-width: 100%;
   }
 
   .trendingRow {
@@ -854,7 +902,7 @@
   }
 
   .topActions {
-    max-width: 70%;
+    max-width: 100%;
     gap: 5px;
   }
 }
